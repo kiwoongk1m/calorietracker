@@ -1,0 +1,21 @@
+{
+  "name": "food-calorie-estimator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Estimate calories and macros of a meal from a photo. Stage 1 (MVP) skeleton.",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c blue,green \"npm:dev:backend\" \"npm:dev:frontend\"",
+    "dev:backend": "npm -w backend run dev",
+    "dev:frontend": "npm -w frontend run dev",
+    "build": "npm -w frontend run build",
+    "start": "npm -w backend run start",
+    "test": "npm -w frontend run test && npm -w backend run test"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

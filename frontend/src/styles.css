@@ -1,0 +1,484 @@
+/* ===========================================================================
+   Calorie Snap — visual design (Task E).
+   A warm, appetite-adjacent palette (deep basil green + amber on a soft cream
+   canvas), a serif display face for personality against a clean sans body,
+   layered depth, and restrained micro-interactions. Mobile-first; scales up to
+   a centered single-column reading width. All class names match the components.
+   =========================================================================== */
+
+:root {
+  /* Surface */
+  --bg: #f4f1ea; /* warm cream canvas */
+  --bg-sunken: #ece7dc;
+  --card: #fffdf9;
+  --line: #e4ddcd;
+  --line-strong: #d6ccb6;
+
+  /* Ink */
+  --ink: #221f1a;
+  --muted: #7a7363;
+
+  /* Brand */
+  --accent: #2f6f4f; /* basil green */
+  --accent-deep: #265c41;
+  --accent-soft: #e7f1ea;
+  --accent-ink: #fffdf9;
+
+  --amber: #b5731a; /* roasted amber (serving / typical) */
+  --amber-soft: #f6ead4;
+
+  /* Status */
+  --warn: #8a5a12;
+  --warn-bg: #f7ead2;
+  --error: #a3271f;
+  --error-bg: #f8e0dd;
+
+  --radius: 14px;
+  --radius-lg: 20px;
+  --shadow-sm: 0 1px 2px rgba(34, 31, 26, 0.06);
+  --shadow-md: 0 6px 24px -10px rgba(34, 31, 26, 0.22);
+  --shadow-lg: 0 18px 48px -18px rgba(34, 31, 26, 0.32);
+
+  --display: "Georgia", "Times New Roman", serif;
+  --body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(1200px 600px at 100% -10%, #faf6ee 0%, transparent 60%),
+    var(--bg);
+  color: var(--ink);
+  font: 16px/1.55 var(--body);
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  max-width: 580px;
+  margin: 0 auto;
+  padding: 40px 20px 72px;
+}
+
+/* ---- Header ---------------------------------------------------------------*/
+.app-head {
+  margin-bottom: 28px;
+}
+.app-head h1 {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(30px, 7vw, 40px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--accent-deep);
+}
+.tagline {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 15.5px;
+}
+
+/* ---- Capture controls -----------------------------------------------------*/
+.capture {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 18px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-family: var(--body);
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  transition:
+    transform 0.08s ease,
+    box-shadow 0.15s ease,
+    background 0.15s ease,
+    border-color 0.15s ease;
+  box-shadow: var(--shadow-sm);
+}
+.btn:hover:not(:disabled):not(.is-disabled) {
+  background: var(--accent-deep);
+  border-color: var(--accent-deep);
+  box-shadow: var(--shadow-md);
+}
+.btn:active:not(:disabled):not(.is-disabled) {
+  transform: translateY(1px);
+}
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.btn:disabled,
+.btn.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--accent-deep);
+  border-color: var(--line-strong);
+  box-shadow: none;
+}
+.btn-ghost:hover:not(:disabled):not(.is-disabled) {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  box-shadow: none;
+}
+
+.btn-sm {
+  padding: 7px 14px;
+  font-size: 14px;
+}
+.btn-block {
+  display: flex;
+  width: 100%;
+  margin-top: 18px;
+}
+
+/* ---- Camera ---------------------------------------------------------------*/
+.camera {
+  margin-bottom: 22px;
+}
+.camera-stage {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background: #1c1a16;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.camera-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.camera-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #f4f1ea;
+  background: rgba(28, 26, 22, 0.4);
+}
+.camera-fallback {
+  margin: 16px;
+}
+.camera-controls {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+.camera-controls .btn {
+  flex: 1;
+}
+
+/* ---- Preview --------------------------------------------------------------*/
+.preview {
+  margin: 0 0 22px;
+}
+.preview-img {
+  width: 100%;
+  max-height: 340px;
+  object-fit: cover;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  display: block;
+}
+
+/* ---- States ---------------------------------------------------------------*/
+.state {
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  font-size: 15px;
+  margin: 4px 0 16px;
+}
+.state p {
+  margin: 0 0 10px;
+}
+.state p:last-child {
+  margin-bottom: 0;
+}
+.state-busy {
+  color: var(--accent-deep);
+  background: var(--accent-soft);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.state-busy::before {
+  content: "";
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  border-top-color: transparent;
+  animation: spin 0.7s linear infinite;
+  flex: none;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.state-warn {
+  color: var(--warn);
+  background: var(--warn-bg);
+}
+.state-error {
+  color: var(--error);
+  background: var(--error-bg);
+}
+.state-warn .btn,
+.state-error .btn {
+  border-color: currentColor;
+  color: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .state-busy::before {
+    animation: none;
+  }
+  .btn {
+    transition: none;
+  }
+}
+
+/* ---- Result controls ------------------------------------------------------*/
+.result-controls {
+  margin: 0 0 18px;
+  padding: 20px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.detected {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.detected-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+.detected-value {
+  font-family: var(--display);
+  font-size: 22px;
+  font-weight: 700;
+  text-transform: capitalize;
+  letter-spacing: -0.01em;
+}
+.confidence {
+  margin-left: auto;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent-deep);
+  background: var(--accent-soft);
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+
+.candidates {
+  margin-bottom: 18px;
+}
+.candidates-label {
+  display: block;
+  color: var(--muted);
+  font-size: 13.5px;
+  margin-bottom: 8px;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chip {
+  padding: 7px 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 14px;
+  text-transform: capitalize;
+  transition:
+    border-color 0.12s ease,
+    background 0.12s ease,
+    color 0.12s ease;
+}
+.chip:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.chip-active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.grams {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.grams-label {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.grams input {
+  padding: 12px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  font-size: 16px;
+  color: var(--ink);
+  background: var(--card);
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.grams input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.grams-hint {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* ---- Nutrition card -------------------------------------------------------*/
+.card {
+  margin: 0;
+  padding: 26px;
+  background:
+    linear-gradient(180deg, #fffefb 0%, var(--card) 100%);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.card-title {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-transform: capitalize;
+}
+.basis {
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 5px 11px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex: none;
+}
+.basis-weighed {
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+}
+.basis-serving {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.kcal {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 18px 0 20px;
+}
+.kcal-value {
+  font-family: var(--display);
+  font-size: 52px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--accent-deep);
+}
+.kcal-label {
+  font-size: 18px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.macros {
+  display: flex;
+  gap: 10px;
+}
+.macro {
+  flex: 1;
+  text-align: center;
+  padding: 14px 8px;
+  background: var(--bg-sunken);
+  border-radius: var(--radius);
+}
+.macro-value {
+  display: block;
+  font-size: 21px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.macro-unit {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 500;
+  margin-left: 2px;
+}
+.macro-label {
+  display: block;
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.card-note {
+  margin: 18px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}

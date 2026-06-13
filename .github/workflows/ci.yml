@@ -1,0 +1,34 @@
+# Minimal CI (Task F): on every push / PR, install deps, run the unit tests
+# (calc + provider logic), and build the frontend. Keeps the keyless default
+# green — no API keys are needed because the mock providers are the default and
+# the provider tests exercise pure logic only.
+
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: ['**']
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests (frontend calc + backend providers)
+        run: npm test
+
+      - name: Build frontend
+        run: npm run build
