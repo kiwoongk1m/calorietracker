@@ -5,9 +5,9 @@ picture, the app identifies the dish, and you get calories + protein / carbs /
 fat — either accurately (enter the food's weight in grams) or as a typical
 serving estimate.
 
-This repository is the **Stage 1 skeleton** (Task A): the full pipeline runs
-end-to-end on **mock data**, with clean seams so the real recognition and
-nutrition providers drop in later without touching the rest of the app.
+The full pipeline runs end-to-end on **mock data by default** (no API keys
+needed), and real recognition (vision LLM) and nutrition (USDA) providers drop
+in behind the same seams via two env vars — no route, calc, or UI changes.
 
 ## The core design decision
 
@@ -60,9 +60,23 @@ no route, calc, or UI changes:
 | Nutrition   | `NUTRITION_PROVIDER`   | `mock`  | `usda`       | Task C |
 
 The providers are in [`backend/src/providers/`](backend/src/providers/). Each is
-a pure function returning the shared contract shape; the placeholder real
-providers throw a clear "not implemented yet" error rather than returning
-garbage.
+a pure function returning the shared contract shape.
+
+- **`mock`** (default for both): fixed cooked-dish data so the app always runs
+  keyless.
+- **`visionllm`** ([`visionllm.js`](backend/src/providers/visionllm.js)): sends
+  the image to a vision-capable Claude model, asks for JSON-only output (best
+  label + 2–3 alternates + confidence), validates it, and falls back to the
+  unrecognized state when unsure or for non-food images. The key
+  (`VISION_LLM_API_KEY`) is read server-side only.
+- **`usda`** ([`usda.js`](backend/src/providers/usda.js)): queries USDA
+  FoodData Central, **prefers cooked entries over raw**, maps to the per-100g
+  contract, estimates a serving size, and caches results in-process. Key:
+  `USDA_API_KEY` (server-side only).
+
+The pure logic in each real provider (image/JSON parsing, validation, USDA
+selection/mapping/serving estimate) is unit-tested without a key in
+`*.test.js` next to it.
 
 ## Project layout
 
@@ -108,21 +122,58 @@ Calculation module (`calc.js`):
 npm install              # installs both workspaces
 cp .env.example .env     # optional; mocks are the defaults
 npm run dev              # backend (:3001) + frontend (:5173) together
-npm test                 # calc module unit tests (Vitest)
+npm test                 # unit tests: frontend calc + backend provider logic
+npm run build            # production build of the frontend
 ```
 
-Open http://localhost:5173. Click **Try a sample** to run the full pipeline,
-**Try a non-food image** to see the graceful unrecognized state, and enter a
-weight to switch from the serving estimate to the weighed number.
+Open http://localhost:5173. **Upload a photo** or **Use camera** (live snapshot
+via getUserMedia, with preview); click **Try a sample** to run the full pipeline
+on mock data, **Try a non-food image** to see the graceful unrecognized state,
+and enter a weight to switch from the serving estimate to the weighed number.
+
+To run against the **real** providers locally, set the env vars before
+`npm run dev`:
+
+```bash
+# real recognition (needs an Anthropic key) and/or real nutrition (USDA key)
+RECOGNITION_PROVIDER=visionllm VISION_LLM_API_KEY=... \
+NUTRITION_PROVIDER=usda       USDA_API_KEY=...        npm run dev
+```
+
+Leave either unset to keep that step on the mock — the two providers are
+independent.
+
+## CI
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push / PR:
+`npm ci` → `npm test` (frontend calc + backend provider logic) → `npm run build`.
+It needs **no secrets** — the mock providers are the default and the provider
+tests cover pure logic only, so the build stays green keyless.
 
 ## Deploying
 
-Configured for a single Vercel deploy: the static frontend builds to
+Configured for a single **Vercel** deploy: the static frontend builds to
 `frontend/dist` and `api/*.js` run as serverless functions sharing the same
-providers (see [`vercel.json`](vercel.json)). Set `RECOGNITION_PROVIDER`,
-`NUTRITION_PROVIDER`, and any real keys as environment variables in the host.
-**The vision-LLM and USDA keys are server-side only and never reach the browser
-bundle.** (Public URL + CI are Task F.)
+providers (see [`vercel.json`](vercel.json)). **The vision-LLM and USDA keys are
+server-side only and never reach the browser bundle** (verified: a production
+build contains no reference to the keys or the Anthropic SDK).
+
+The exact steps (require your own accounts/credentials, which aren't available
+in this environment):
+
+1. Push this repo to GitHub:
+   `git remote add origin <your-repo-url> && git push -u origin main`
+2. Import the repo at [vercel.com/new](https://vercel.com/new) (it auto-detects
+   `vercel.json`; build = `npm run build`, output = `frontend/dist`).
+3. In **Project → Settings → Environment Variables**, add (Production):
+   - `RECOGNITION_PROVIDER=visionllm` and `VISION_LLM_API_KEY=<your key>`
+     (optional `VISION_LLM_MODEL`), **or** leave unset to ship the mock.
+   - `NUTRITION_PROVIDER=usda` and `USDA_API_KEY=<your key>`
+     ([free signup](https://fdc.nal.usda.gov/api-key-signup.html)), **or** leave
+     unset for the mock.
+4. Deploy → Vercel gives you a public `https://<project>.vercel.app` URL.
+
+With no env vars set, the deploy still works end-to-end on the mock providers.
 
 ## Known limitations (read this — it's the honest part)
 
@@ -131,11 +182,20 @@ bundle.** (Public URL + CI are Task F.)
   Single-ingredient foods (grilled chicken, an apple) are far more accurate.
 - **Cooked, not raw.** You weigh a finished plate, so nutrition is matched
   against *cooked* entries — 100 g of cooked chicken has more calories than
-  100 g raw. (Task C must prefer cooked USDA entries.)
+  100 g raw — so the USDA provider prefers cooked entries, and the candidate-
+  correction chips let you fix the worst mismatches (one label can map to
+  several USDA entries).
 - **Tare the plate.** The number assumes you weighed the food only, not the
   plate.
 - **One dish per photo.** Multi-item plates, tap-to-select, live camera
   detection, and image-based portion estimation are deferred to Stage 2/3.
+- **Real-provider verification needs keys.** The `visionllm` and `usda`
+  providers are implemented in full against the documented APIs, but were
+  verified only by (a) unit-testing their pure parsing/selection logic keyless,
+  and (b) confirming they fail cleanly (HTTP 502 JSON, server stays up) when
+  selected without a key. The live image-recognition accuracy and live USDA
+  matching can't be exercised until `VISION_LLM_API_KEY` / `USDA_API_KEY` are
+  set.
 
 ## Stage status
 
