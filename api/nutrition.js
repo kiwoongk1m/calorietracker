@@ -2,8 +2,10 @@
 // Thin HTTP adapter over the shared nutrition provider.
 
 import { lookupNutrition } from '../backend/src/providers/nutrition.js';
+import { applyCors } from './_cors.js';
 
 export default async function handler(req, res) {
+  if (applyCors(req, res, 'GET')) return;
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed.' });
   }

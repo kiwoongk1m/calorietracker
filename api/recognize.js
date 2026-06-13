@@ -3,8 +3,10 @@
 // Express dev server uses, so dev and prod behave identically.
 
 import { recognizeDish } from '../backend/src/providers/recognition.js';
+import { applyCors } from './_cors.js';
 
 export default async function handler(req, res) {
+  if (applyCors(req, res, 'POST')) return;
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed.' });
   }

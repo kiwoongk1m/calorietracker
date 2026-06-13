@@ -175,6 +175,34 @@ in this environment):
 
 With no env vars set, the deploy still works end-to-end on the mock providers.
 
+## Android app (Capacitor)
+
+The same React app ships as a native Android app via [Capacitor](https://capacitorjs.com)
+— the UI runs in a WebView and calls the **deployed** backend over HTTPS.
+Recognition runs server-side, so nothing about the pipeline changes for Android;
+only the capture/display shell is wrapped. The native project lives in
+[`android/`](android/).
+
+Because the WebView serves the UI locally, API calls can't be same-origin — set
+the backend origin at build time:
+
+1. Deploy the backend first (see **Deploying**) to get a public URL.
+2. `cp frontend/.env.example frontend/.env` and set
+   `VITE_API_BASE_URL=https://<your-app>.vercel.app`. (The web build leaves this
+   empty and stays same-origin; only the Android build needs it.)
+3. Build + copy web assets into the native project:
+   `npm run android:sync`
+4. Open in Android Studio and run/build the APK/AAB:
+   `npm run android:open`
+
+Requirements (your machine): **Android Studio + JDK 17** (the Android SDK and
+Gradle build aren't available in this repo's environment, so the APK is built
+locally). Camera capture uses `getUserMedia`; the `CAMERA` permission is already
+declared in [`AndroidManifest.xml`](android/app/src/main/AndroidManifest.xml),
+and the file-upload path remains as a fallback. Cross-origin calls from the app
+are covered by CORS headers on the serverless functions
+([`api/_cors.js`](api/_cors.js)).
+
 ## Known limitations (read this — it's the honest part)
 
 - **Composite dishes are averaged estimates.** "Carbonara" is many ingredients

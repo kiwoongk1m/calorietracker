@@ -482,3 +482,217 @@ body {
   line-height: 1.5;
   color: var(--muted);
 }
+
+/* ---- Tabs -----------------------------------------------------------------*/
+.tabs {
+  display: flex;
+  gap: 6px;
+  padding: 5px;
+  margin-bottom: 22px;
+  background: var(--bg-sunken);
+  border-radius: var(--radius);
+}
+.tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 9px 10px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--body);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
+}
+.tab-active {
+  background: var(--card);
+  color: var(--accent-deep);
+  box-shadow: var(--shadow-sm);
+}
+.tab-badge {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.tab-active .tab-badge {
+  color: var(--accent);
+}
+
+/* ---- Meal log -------------------------------------------------------------*/
+.log-today {
+  padding: 20px;
+  background: linear-gradient(180deg, #fffefb 0%, var(--card) 100%);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  margin-bottom: 20px;
+}
+.log-today-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.log-today-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 600;
+}
+.goal-display {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 6px;
+}
+.goal-display:hover {
+  color: var(--accent-deep);
+  background: var(--accent-soft);
+}
+.goal-edit {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.goal-edit input {
+  width: 88px;
+  padding: 5px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  font-size: 14px;
+}
+.log-today-total {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 10px 0 12px;
+}
+.log-today-kcal {
+  font-family: var(--display);
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--accent-deep);
+}
+.log-today-kcal.is-over {
+  color: var(--amber);
+}
+.log-today-unit {
+  font-size: 16px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.progress {
+  height: 10px;
+  background: var(--bg-sunken);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.progress-bar {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+.progress-bar.is-over {
+  background: var(--amber);
+}
+.log-today-macros {
+  display: flex;
+  gap: 16px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.log-empty {
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+  padding: 24px 16px;
+}
+.log-history {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.log-day-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.log-day-name {
+  font-weight: 700;
+  font-size: 15px;
+}
+.log-day-total {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent-deep);
+}
+.log-entries {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.log-entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.log-entry-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.log-entry-name {
+  font-weight: 600;
+  text-transform: capitalize;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.log-entry-meta {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.log-entry-del {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+.log-entry-del:hover {
+  color: var(--error);
+  border-color: var(--error);
+  background: var(--error-bg);
+}

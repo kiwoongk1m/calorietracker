@@ -1,0 +1,5 @@
+{
+  "appId": "com.caloriesnap.app",
+  "appName": "Calorie Snap",
+  "webDir": "frontend/dist"
+}

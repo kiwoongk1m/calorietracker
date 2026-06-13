@@ -170,6 +170,36 @@ export function _clearCache() {
   cache.clear();
 }
 
+// Reference/survey datasets are clean, cooked-aware entries; Branded is noisy
+// and often shares a marketing name with whole foods. We search reference first
+// and only fall back to Branded when there is nothing better.
+const REFERENCE_DATA_TYPES = ['Foundation', 'SR Legacy', 'Survey (FNDDS)'];
+const BRANDED_DATA_TYPES = ['Branded'];
+
+/**
+ * One USDA search via the POST endpoint. POST takes dataType as a JSON array,
+ * which avoids the GET URL-encoding bug where the "Survey (FNDDS)" value
+ * intermittently triggers an nginx HTTP 400. Returns the foods array (possibly
+ * empty); throws on transport/HTTP failure.
+ */
+async function searchUSDA(apiKey, query, dataType) {
+  const url = `${FDC_SEARCH_URL}?api_key=${encodeURIComponent(apiKey)}`;
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ query, pageSize: 25, dataType }),
+    });
+  } catch (err) {
+    throw new Error(`USDA request failed: ${err.message}`);
+  }
+  if (res.status === 404) return [];
+  if (!res.ok) throw new Error(`USDA returned HTTP ${res.status}`);
+  const body = await res.json();
+  return Array.isArray(body.foods) ? body.foods : [];
+}
+
 /**
  * The real USDA lookup. Throws on misconfiguration (no key) or transport
  * failure; returns null on a genuine no-match.
@@ -188,34 +218,16 @@ export async function lookupWithUSDA({ query }) {
     );
   }
 
-  const url = new URL(FDC_SEARCH_URL);
-  url.searchParams.set('api_key', apiKey);
-  url.searchParams.set('query', q);
-  url.searchParams.set('pageSize', '25');
-  // Bias the candidate pool toward cooked/reference data; selection still
-  // applies the cooked-vs-raw scoring on top.
-  url.searchParams.set(
-    'dataType',
-    'Foundation,SR Legacy,Survey (FNDDS),Branded'
-  );
-
-  let res;
-  try {
-    res = await fetch(url, { headers: { Accept: 'application/json' } });
-  } catch (err) {
-    throw new Error(`USDA request failed: ${err.message}`);
+  // Reference/survey datasets first (clean, cooked-aware), Branded only as a
+  // fallback, so whole foods land on canonical entries instead of branded
+  // products that merely share the name. Selection still applies cooked-vs-raw
+  // scoring within the returned pool.
+  let foods = await searchUSDA(apiKey, q, REFERENCE_DATA_TYPES);
+  if (foods.length === 0) {
+    foods = await searchUSDA(apiKey, q, BRANDED_DATA_TYPES);
   }
 
-  if (res.status === 404) {
-    setCache(q, null);
-    return null;
-  }
-  if (!res.ok) {
-    throw new Error(`USDA returned HTTP ${res.status}`);
-  }
-
-  const body = await res.json();
-  const best = selectBestFood(body.foods, q);
+  const best = selectBestFood(foods, q);
   if (!best) {
     setCache(q, null);
     return null;

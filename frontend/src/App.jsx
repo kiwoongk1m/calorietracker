@@ -13,8 +13,19 @@
 import { useMemo, useState } from 'react';
 import { recognizeDish, fetchNutrition } from './services/api.js';
 import { calculateNutrition } from './lib/calc.js';
+import { downscaleDataUrl } from './lib/image.js';
+import {
+  addEntry,
+  deleteEntry,
+  getEntries,
+  getGoal,
+  setGoal as persistGoal,
+  sumNutrition,
+  dayKey,
+} from './lib/log.js';
 import NutritionCard from './components/NutritionCard.jsx';
 import CameraCapture from './components/CameraCapture.jsx';
+import MealLog from './components/MealLog.jsx';
 
 // A hard-coded stand-in "photo" for the sample button. The mock recognizer
 // ignores the bytes; a real image flows through unchanged with the real
@@ -33,6 +44,17 @@ export default function App() {
   const [grams, setGrams] = useState('');
   const [cameraOpen, setCameraOpen] = useState(false);
 
+  // Meal log + daily tracking (persisted in localStorage via lib/log.js).
+  const [entries, setEntries] = useState(() => getEntries());
+  const [goal, setGoalState] = useState(() => getGoal());
+  const [view, setView] = useState('estimate'); // 'estimate' | 'log'
+  const [justLogged, setJustLogged] = useState(false);
+
+  const todayKcal = useMemo(() => {
+    const today = dayKey(new Date());
+    return sumNutrition(entries.filter((e) => dayKey(e.timestamp) === today)).kcal;
+  }, [entries]);
+
   // Recompute the card whenever nutrition or grams change. Pure + cheap.
   const result = useMemo(() => {
     if (!nutrition) return null;
@@ -50,6 +72,7 @@ export default function App() {
     setNutrition(null);
     setGrams('');
     setError(null);
+    setJustLogged(false);
   }
 
   function startOver() {
@@ -95,7 +118,17 @@ export default function App() {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => runPipeline(reader.result, reader.result);
+    reader.onload = async () => {
+      try {
+        // Downscale before sending so large phone photos stay under the vision
+        // API's size limit (and upload fast). Falls back to the original if the
+        // resize fails for any reason.
+        const scaled = await downscaleDataUrl(reader.result);
+        runPipeline(scaled, scaled);
+      } catch {
+        runPipeline(reader.result, reader.result);
+      }
+    };
     reader.onerror = () => {
       setError('Could not read that file. Try another photo.');
       setStatus('error');
@@ -116,6 +149,30 @@ export default function App() {
     lookUp(candidate);
   }
 
+  function logCurrentMeal() {
+    if (!result || !nutrition) return;
+    const stored = addEntry({
+      name: nutrition.name,
+      fdcId: nutrition.fdcId,
+      grams: result.grams,
+      basis: result.basis,
+      kcal: result.kcal,
+      protein: result.protein,
+      carbs: result.carbs,
+      fat: result.fat,
+    });
+    setEntries((prev) => [...prev, stored]);
+    setJustLogged(true);
+  }
+
+  function handleDeleteEntry(id) {
+    setEntries(deleteEntry(id));
+  }
+
+  function handleSetGoal(value) {
+    setGoalState(persistGoal(value));
+  }
+
   const busy = status === 'recognizing' || status === 'looking-up';
   const allCandidates = recognition
     ? [recognition.label, ...(recognition.candidates || [])].filter(
@@ -132,7 +189,25 @@ export default function App() {
         </p>
       </header>
 
-      {cameraOpen ? (
+      <nav className="tabs" aria-label="Views">
+        <button
+          className={`tab ${view === 'estimate' ? 'tab-active' : ''}`}
+          onClick={() => setView('estimate')}
+        >
+          Estimate
+        </button>
+        <button
+          className={`tab ${view === 'log' ? 'tab-active' : ''}`}
+          onClick={() => setView('log')}
+        >
+          Log
+          <span className="tab-badge">{todayKcal.toLocaleString()} kcal today</span>
+        </button>
+      </nav>
+
+      {view === 'estimate' && (
+        <>
+          {cameraOpen ? (
         <CameraCapture
           onCapture={onCameraCapture}
           onClose={() => setCameraOpen(false)}
@@ -263,10 +338,30 @@ export default function App() {
         <NutritionCard name={nutrition.name} result={result} />
       )}
 
-      {preview && status !== 'idle' && (
-        <button className="btn btn-ghost btn-block" onClick={startOver}>
-          New photo
+      {result && nutrition && (
+        <button
+          className={`btn btn-block ${justLogged ? 'btn-ghost' : ''}`}
+          onClick={justLogged ? () => setView('log') : logCurrentMeal}
+        >
+          {justLogged ? 'Logged ✓ — View log' : 'Log this meal'}
         </button>
+      )}
+
+          {preview && status !== 'idle' && (
+            <button className="btn btn-ghost btn-block" onClick={startOver}>
+              New photo
+            </button>
+          )}
+        </>
+      )}
+
+      {view === 'log' && (
+        <MealLog
+          entries={entries}
+          goal={goal}
+          onDelete={handleDeleteEntry}
+          onSetGoal={handleSetGoal}
+        />
       )}
     </main>
   );

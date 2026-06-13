@@ -13,9 +13,16 @@
     "dev:frontend": "npm -w frontend run dev",
     "build": "npm -w frontend run build",
     "start": "npm -w backend run start",
-    "test": "npm -w frontend run test && npm -w backend run test"
+    "test": "npm -w frontend run test && npm -w backend run test",
+    "android:sync": "npm run build && cap sync android",
+    "android:open": "cap open android"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.4.0",
+    "@capacitor/cli": "^8.4.0",
+    "@capacitor/core": "^8.4.0"
   }
 }

@@ -9,6 +9,7 @@
 // ---------------------------------------------------------------------------
 
 import { useEffect, useRef, useState } from 'react';
+import { fitWithin, JPEG_QUALITY } from '../lib/image.js';
 
 export default function CameraCapture({ onCapture, onClose, disabled }) {
   const videoRef = useRef(null);
@@ -70,15 +71,16 @@ export default function CameraCapture({ onCapture, onClose, disabled }) {
   function snapshot() {
     const video = videoRef.current;
     if (!video || status !== 'live') return;
-    const w = video.videoWidth;
-    const h = video.videoHeight;
-    if (!w || !h) return;
+    if (!video.videoWidth || !video.videoHeight) return;
+    // Cap the snapshot to the vision API's effective max edge so big camera
+    // sensors don't produce oversized uploads (see lib/image.js).
+    const { width, height } = fitWithin(video.videoWidth, video.videoHeight);
     const canvas = document.createElement('canvas');
-    canvas.width = w;
-    canvas.height = h;
+    canvas.width = width;
+    canvas.height = height;
     const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, w, h);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+    ctx.drawImage(video, 0, 0, width, height);
+    const dataUrl = canvas.toDataURL('image/jpeg', JPEG_QUALITY);
     stopStream();
     onCapture(dataUrl);
   }

@@ -193,11 +193,12 @@ export function normalizeRecognition(raw, unrecognized) {
  * @param {object} unrecognized  the frozen UNRECOGNIZED contract object
  */
 export async function recognizeWithVisionLLM({ imageBase64 }, unrecognized) {
-  const apiKey = process.env.VISION_LLM_API_KEY;
+  const apiKey = process.env.VISION_LLM_API_KEY || process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new Error(
-      'VISION_LLM_API_KEY is not set. Set it (server-side) to use the ' +
-        'visionllm recognition provider, or RECOGNITION_PROVIDER=mock.'
+      'VISION_LLM_API_KEY (or ANTHROPIC_API_KEY) is not set. Set it ' +
+        '(server-side) to use the visionllm recognition provider, or ' +
+        'RECOGNITION_PROVIDER=mock.'
     );
   }
 

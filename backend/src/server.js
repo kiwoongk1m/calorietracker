@@ -5,6 +5,8 @@
 // ./providers/*, so later stages change providers, not routes.
 // ---------------------------------------------------------------------------
 
+import './loadEnv.js'; // must run before anything reads process.env
+
 import express from 'express';
 import cors from 'cors';
 
