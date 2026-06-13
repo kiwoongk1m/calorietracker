@@ -20,7 +20,10 @@
 import Anthropic from '@anthropic-ai/sdk';
 
 // A current vision-capable Claude model. Server-side only; overridable via env.
-const DEFAULT_MODEL = 'claude-opus-4-8';
+// Haiku is the default: a dish-ID call is ~5x cheaper on Haiku 4.5 than Opus
+// and just as capable for this task (~$0.0025 vs ~$0.0125 per scan). Override
+// with VISION_LLM_MODEL=claude-opus-4-8 for maximum accuracy.
+const DEFAULT_MODEL = 'claude-haiku-4-5';
 
 // Confidence at/under which we treat recognition as "not sure enough" and fall
 // back to the unrecognized state rather than guessing.
