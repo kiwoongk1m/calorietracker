@@ -26,8 +26,10 @@ import {
   sumNutrition,
   dayKey,
   defaultMealType,
+  recentFoods,
   MEAL_TYPES,
 } from './lib/log.js';
+import { getFavorites, toggleFavorite } from './lib/favorites.js';
 import {
   getWeights,
   addWeight,
@@ -43,6 +45,7 @@ import {
   recommendedCalories,
 } from './lib/profile.js';
 import CameraCapture from './components/CameraCapture.jsx';
+import QuickAdd from './components/QuickAdd.jsx';
 import MealBuilder from './components/MealBuilder.jsx';
 import MealLog from './components/MealLog.jsx';
 import WeightTracker from './components/WeightTracker.jsx';
@@ -79,10 +82,15 @@ export default function App() {
   // Profile + calorie target (persisted in localStorage via lib/profile.js).
   const [profile, setProfileState] = useState(() => getProfile());
 
+  // Favorite foods for quick re-add (persisted via lib/favorites.js).
+  const [favorites, setFavorites] = useState(() => getFavorites());
+
   const todayKcal = useMemo(() => {
     const today = dayKey(new Date());
     return sumNutrition(entries.filter((e) => dayKey(e.timestamp) === today)).kcal;
   }, [entries]);
+
+  const recents = useMemo(() => recentFoods(entries, 8), [entries]);
 
   // --- meal building --------------------------------------------------------
   function addFoodToMeal(query) {
@@ -292,6 +300,9 @@ export default function App() {
   function handleApplyGoal(kcal) {
     if (kcal) setGoalState(persistGoal(kcal));
   }
+  function handleToggleFavorite(food) {
+    setFavorites(toggleFavorite(food));
+  }
 
   const wStats = weightStats(weights);
   const weightBadge = wStats
@@ -394,6 +405,13 @@ export default function App() {
                   Add
                 </button>
               </form>
+
+              <QuickAdd
+                favorites={favorites}
+                recents={recents}
+                onAdd={addFoodToMeal}
+                onToggleFavorite={handleToggleFavorite}
+              />
             </>
           )}
 

@@ -256,6 +256,68 @@ body {
   flex: none;
 }
 
+/* ---- Quick add (favorites + recents) -------------------------------------*/
+.quick-add {
+  margin-bottom: 22px;
+}
+.quick-add-label {
+  display: block;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.quick-add-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.qa-chip {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--card);
+  overflow: hidden;
+  max-width: 100%;
+}
+.qa-star {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 4px 0 11px;
+  cursor: pointer;
+}
+.qa-star-on {
+  color: var(--amber);
+}
+.qa-add {
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-transform: capitalize;
+  padding: 8px 14px 8px 6px;
+  cursor: pointer;
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.12s ease;
+}
+.qa-chip:hover {
+  border-color: var(--accent);
+}
+.qa-chip:hover .qa-add {
+  color: var(--accent-deep);
+}
+
 .state {
   padding: 14px 16px;
   border-radius: var(--radius);

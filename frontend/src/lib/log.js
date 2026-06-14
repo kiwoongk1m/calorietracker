@@ -122,6 +122,24 @@ export function groupIntoMeals(entries = []) {
     .sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1)); // newest meal first
 }
 
+/**
+ * The most recently logged distinct foods, newest first. Pure.
+ * @returns {Array<{name:string, fdcId:any}>}
+ */
+export function recentFoods(entries = [], limit = 8) {
+  const seen = new Set();
+  const out = [];
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const e = entries[i];
+    const k = String(e.name || '').toLowerCase();
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    out.push({ name: e.name, fdcId: e.fdcId });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
 // --- persisted operations ---------------------------------------------------
 
 export function getEntries() {

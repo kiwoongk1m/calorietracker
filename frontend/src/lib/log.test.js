@@ -4,6 +4,7 @@ import {
   sumNutrition,
   groupByDay,
   groupIntoMeals,
+  recentFoods,
   defaultMealType,
   addEntry,
   getEntries,
@@ -39,6 +40,22 @@ describe('dayKey', () => {
   });
   it('returns "unknown" for an invalid timestamp', () => {
     expect(dayKey('not-a-date')).toBe('unknown');
+  });
+});
+
+describe('recentFoods', () => {
+  it('returns distinct foods newest first, capped at the limit', () => {
+    const entries = [
+      { name: 'Apple', fdcId: '1', timestamp: '2026-06-14T08:00:00' },
+      { name: 'Chicken', fdcId: '2', timestamp: '2026-06-14T12:00:00' },
+      { name: 'apple', fdcId: '1', timestamp: '2026-06-14T18:00:00' }, // dup (case)
+    ];
+    const recent = recentFoods(entries, 8);
+    expect(recent.map((r) => r.name)).toEqual(['apple', 'Chicken']);
+  });
+  it('respects the limit', () => {
+    const entries = Array.from({ length: 12 }, (_, i) => ({ name: `food ${i}`, fdcId: i }));
+    expect(recentFoods(entries, 5)).toHaveLength(5);
   });
 });
 
