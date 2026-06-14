@@ -1,19 +1,21 @@
 // ---------------------------------------------------------------------------
-// App orchestration (Task D builds out the full capture + correction UX on top
-// of the Task A skeleton):
-//   capture (upload OR camera snapshot) -> preview
-//     -> /api/recognize -> detected dish + correctable candidates
-//     -> /api/nutrition -> calc -> nutrition card
-//   grams input toggles weighed vs typical-serving; basis is always visible.
+// App orchestration. A meal is a LIST of foods, so capture/search builds an
+// editable meal:
+//   capture (upload/camera/sample) -> /api/recognize -> N detected foods
+//     -> each looked up via /api/nutrition -> editable meal item
+//   search/add by name -> one more meal item
+//   each item: grams (weighed vs serving), rename, remove
+//   -> running meal total -> log the whole meal (one log entry per item)
 //
-// Every async step has an explicit loading and error state. The seams are
-// unchanged: this file only talks to services/api.js and lib/calc.js.
+// The seams are unchanged: this file only talks to services/api.js, lib/calc.js,
+// lib/log.js, and lib/weight.js.
 // ---------------------------------------------------------------------------
 
 import { useMemo, useState } from 'react';
 import { recognizeDish, fetchNutrition } from './services/api.js';
 import { calculateNutrition } from './lib/calc.js';
 import { downscaleDataUrl } from './lib/image.js';
+import { newId } from './lib/storage.js';
 import {
   addEntry,
   deleteEntry,
@@ -32,35 +34,33 @@ import {
   weightStats,
   kgToUnit,
 } from './lib/weight.js';
-import NutritionCard from './components/NutritionCard.jsx';
 import CameraCapture from './components/CameraCapture.jsx';
+import MealBuilder from './components/MealBuilder.jsx';
 import MealLog from './components/MealLog.jsx';
 import WeightTracker from './components/WeightTracker.jsx';
 
 // A hard-coded stand-in "photo" for the sample button. The mock recognizer
-// ignores the bytes; a real image flows through unchanged with the real
-// providers enabled.
+// ignores the bytes; a real image flows through unchanged with real providers.
 const SAMPLE_IMAGE = 'sample-food-photo';
 
 export default function App() {
-  // idle | recognizing | looking-up | ready | unrecognized | error
+  // idle | recognizing | unrecognized | error
   const [status, setStatus] = useState('idle');
   const [error, setError] = useState(null);
 
   const [preview, setPreview] = useState(null); // data URL shown to the user
-  const [recognition, setRecognition] = useState(null); // {label, candidates, confidence}
-  const [label, setLabel] = useState(''); // chosen (possibly corrected) label
-  const [nutrition, setNutrition] = useState(null); // contract nutrition object
-  const [grams, setGrams] = useState('');
   const [cameraOpen, setCameraOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState(''); // text food search
-  const [correctionDraft, setCorrectionDraft] = useState(''); // fix a misrecognized dish by name
+  const [addQuery, setAddQuery] = useState(''); // "add a food by name" box
+
+  // The meal under construction: a list of { id, query, nutrition, grams, state }
+  // where state is 'loading' | 'ready' | 'error'.
+  const [mealItems, setMealItems] = useState([]);
+  const [justLogged, setJustLogged] = useState(false);
 
   // Meal log + daily tracking (persisted in localStorage via lib/log.js).
   const [entries, setEntries] = useState(() => getEntries());
   const [goal, setGoalState] = useState(() => getGoal());
   const [view, setView] = useState('estimate'); // 'estimate' | 'log' | 'weight'
-  const [justLogged, setJustLogged] = useState(false);
 
   // Body-weight tracking (persisted in localStorage via lib/weight.js).
   const [weights, setWeights] = useState(() => getWeights());
@@ -71,71 +71,91 @@ export default function App() {
     return sumNutrition(entries.filter((e) => dayKey(e.timestamp) === today)).kcal;
   }, [entries]);
 
-  // Recompute the card whenever nutrition or grams change. Pure + cheap.
-  const result = useMemo(() => {
-    if (!nutrition) return null;
-    const g = parseFloat(grams);
-    return calculateNutrition({
-      per100g: nutrition.per100g,
-      grams: Number.isFinite(g) ? g : undefined,
-      defaultServingGrams: nutrition.defaultServingGrams,
-    });
-  }, [nutrition, grams]);
-
-  function resetResults() {
-    setRecognition(null);
-    setLabel('');
-    setNutrition(null);
-    setGrams('');
-    setError(null);
+  // --- meal building --------------------------------------------------------
+  function addFoodToMeal(query) {
+    const q = String(query || '').trim();
+    if (!q) return;
     setJustLogged(false);
-    setCorrectionDraft('');
+    const id = newId();
+    setMealItems((prev) => [
+      ...prev,
+      { id, query: q, nutrition: null, grams: '', state: 'loading' },
+    ]);
+    fetchNutrition(q)
+      .then((data) =>
+        setMealItems((prev) =>
+          prev.map((it) =>
+            it.id === id ? { ...it, nutrition: data, state: 'ready' } : it
+          )
+        )
+      )
+      .catch(() =>
+        setMealItems((prev) =>
+          prev.map((it) => (it.id === id ? { ...it, state: 'error' } : it))
+        )
+      );
+  }
+
+  function renameMealItem(id, query) {
+    const q = String(query || '').trim();
+    if (!q) return;
+    setJustLogged(false);
+    setMealItems((prev) =>
+      prev.map((it) =>
+        it.id === id ? { ...it, query: q, nutrition: null, state: 'loading' } : it
+      )
+    );
+    fetchNutrition(q)
+      .then((data) =>
+        setMealItems((prev) =>
+          prev.map((it) =>
+            it.id === id ? { ...it, nutrition: data, state: 'ready' } : it
+          )
+        )
+      )
+      .catch(() =>
+        setMealItems((prev) =>
+          prev.map((it) => (it.id === id ? { ...it, state: 'error' } : it))
+        )
+      );
+  }
+
+  function setItemGrams(id, grams) {
+    setJustLogged(false);
+    setMealItems((prev) =>
+      prev.map((it) => (it.id === id ? { ...it, grams } : it))
+    );
+  }
+
+  function removeMealItem(id) {
+    setJustLogged(false);
+    setMealItems((prev) => prev.filter((it) => it.id !== id));
   }
 
   function startOver() {
-    resetResults();
+    setMealItems([]);
     setPreview(null);
-    setSearchQuery('');
+    setAddQuery('');
+    setError(null);
+    setJustLogged(false);
     setStatus('idle');
   }
 
-  // Text search: skip recognition, go straight to the nutrition lookup -> card.
-  async function searchFood(e) {
-    e.preventDefault();
-    const q = searchQuery.trim();
-    if (!q) return;
-    resetResults();
-    setPreview(null);
-    await lookUp(q);
-  }
-
-  async function lookUp(query) {
-    setStatus('looking-up');
-    setError(null);
-    try {
-      const data = await fetchNutrition(query);
-      setNutrition(data);
-      setStatus('ready');
-    } catch (e) {
-      setNutrition(null);
-      setError(e.message);
-      setStatus('error');
-    }
-  }
-
   async function runPipeline(imageBase64, previewUrl) {
-    resetResults();
+    setMealItems([]);
+    setJustLogged(false);
+    setError(null);
     setPreview(previewUrl || null);
     setStatus('recognizing');
     try {
       const rec = await recognizeDish(imageBase64);
-      if (!rec || rec.unrecognized || !rec.label) {
+      const items = rec && Array.isArray(rec.items) ? rec.items : [];
+      if (!rec || rec.unrecognized || items.length === 0) {
         setStatus('unrecognized');
         return;
       }
-      setRecognition(rec);
-      setLabel(rec.label);
-      await lookUp(rec.label);
+      setStatus('idle');
+      items.forEach((it) => addFoodToMeal(it.label));
     } catch (e) {
       setError(e.message);
       setStatus('error');
@@ -149,8 +169,7 @@ export default function App() {
     reader.onload = async () => {
       try {
         // Downscale before sending so large phone photos stay under the vision
-        // API's size limit (and upload fast). Falls back to the original if the
-        // resize fails for any reason.
+        // API's size limit (and upload fast). Falls back to the original.
         const scaled = await downscaleDataUrl(reader.result);
         runPipeline(scaled, scaled);
       } catch {
@@ -162,8 +181,7 @@ export default function App() {
       setStatus('error');
     };
     reader.readAsDataURL(file);
-    // Allow re-selecting the same file later.
-    e.target.value = '';
+    e.target.value = ''; // allow re-selecting the same file
   }
 
   function onCameraCapture(dataUrl) {
@@ -171,55 +189,50 @@ export default function App() {
     runPipeline(dataUrl, dataUrl);
   }
 
-  function onPickCandidate(candidate) {
-    if (candidate === label) return;
-    setLabel(candidate);
-    lookUp(candidate);
-  }
-
-  // Correct a misrecognized dish by typing the right name; keeps the photo
-  // context and just re-runs the nutrition lookup.
-  function submitCorrection(e) {
+  function onAddSubmit(e) {
     e.preventDefault();
-    const q = correctionDraft.trim();
-    if (!q) return;
-    setLabel(q);
-    lookUp(q);
-    setCorrectionDraft('');
+    addFoodToMeal(addQuery);
+    setAddQuery('');
   }
 
-  function logCurrentMeal() {
-    if (!result || !nutrition) return;
-    const stored = addEntry({
-      name: nutrition.name,
-      fdcId: nutrition.fdcId,
-      grams: result.grams,
-      basis: result.basis,
-      kcal: result.kcal,
-      protein: result.protein,
-      carbs: result.carbs,
-      fat: result.fat,
-    });
-    setEntries((prev) => [...prev, stored]);
+  function logMeal() {
+    const ready = mealItems.filter((it) => it.state === 'ready' && it.nutrition);
+    if (ready.length === 0) return;
+    for (const it of ready) {
+      const g = parseFloat(it.grams);
+      const r = calculateNutrition({
+        per100g: it.nutrition.per100g,
+        grams: Number.isFinite(g) ? g : undefined,
+        defaultServingGrams: it.nutrition.defaultServingGrams,
+      });
+      addEntry({
+        name: it.nutrition.name,
+        fdcId: it.nutrition.fdcId,
+        grams: r.grams,
+        basis: r.basis,
+        kcal: r.kcal,
+        protein: r.protein,
+        carbs: r.carbs,
+        fat: r.fat,
+      });
+    }
+    setEntries(getEntries());
     setJustLogged(true);
   }
 
+  // --- log + weight handlers ------------------------------------------------
   function handleDeleteEntry(id) {
     setEntries(deleteEntry(id));
   }
-
   function handleSetGoal(value) {
     setGoalState(persistGoal(value));
   }
-
   function handleAddWeight(kg) {
     setWeights(addWeight({ kg }));
   }
-
   function handleDeleteWeight(id) {
     setWeights(deleteWeight(id));
   }
-
   function handleSetUnit(unit) {
     setWeightUnit(persistUnit(unit));
   }
@@ -229,12 +242,7 @@ export default function App() {
     ? `${kgToUnit(wStats.latest, weightUnit).toFixed(1)} ${weightUnit}`
     : 'no data';
 
-  const busy = status === 'recognizing' || status === 'looking-up';
-  const allCandidates = recognition
-    ? [recognition.label, ...(recognition.candidates || [])].filter(
-        (c, i, arr) => c && arr.indexOf(c) === i
-      )
-    : [];
+  const busy = status === 'recognizing';
 
   return (
     <main className="app">
@@ -271,196 +279,106 @@ export default function App() {
       {view === 'estimate' && (
         <>
           {cameraOpen ? (
-        <CameraCapture
-          onCapture={onCameraCapture}
-          onClose={() => setCameraOpen(false)}
-          disabled={busy}
-        />
-      ) : (
-        <>
-          <section className="capture" aria-label="Capture a photo">
-            <label className={`btn ${busy ? 'is-disabled' : ''}`}>
-              Upload a photo
-              <input
-                type="file"
-                accept="image/*"
-                onChange={onFile}
-                hidden
-                disabled={busy}
-              />
-            </label>
-            <button
-              className="btn"
-              onClick={() => setCameraOpen(true)}
+            <CameraCapture
+              onCapture={onCameraCapture}
+              onClose={() => setCameraOpen(false)}
               disabled={busy}
-            >
-              Use camera
-            </button>
-            <button
-              className="btn btn-ghost"
-              onClick={() => runPipeline(SAMPLE_IMAGE, null)}
-              disabled={busy}
-            >
-              Try a sample
-            </button>
-          </section>
-
-          <div className="or-divider">
-            <span>or search by name</span>
-          </div>
-
-          <form className="search" onSubmit={searchFood}>
-            <input
-              type="text"
-              placeholder="e.g. grilled chicken breast"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              disabled={busy}
-              aria-label="Search a food by name"
             />
-            <button
-              type="submit"
-              className="btn"
-              disabled={busy || !searchQuery.trim()}
-            >
-              Search
-            </button>
-          </form>
-        </>
-      )}
-
-      {preview && (
-        <figure className="preview">
-          <img src={preview} alt="Captured food" className="preview-img" />
-        </figure>
-      )}
-
-      {status === 'recognizing' && (
-        <p className="state state-busy">Identifying the dish…</p>
-      )}
-      {status === 'looking-up' && (
-        <p className="state state-busy">Looking up nutrition…</p>
-      )}
-
-      {status === 'unrecognized' && (
-        <div className="state state-warn" role="status">
-          <p>
-            Couldn&rsquo;t recognize a dish in that image. Try another photo —
-            we won&rsquo;t show made-up numbers.
-          </p>
-          <button className="btn btn-ghost btn-sm" onClick={startOver}>
-            Try again
-          </button>
-        </div>
-      )}
-
-      {status === 'error' && (
-        <div className="state state-error" role="alert">
-          <p>{error || 'Something went wrong.'}</p>
-          <button className="btn btn-ghost btn-sm" onClick={startOver}>
-            Start over
-          </button>
-        </div>
-      )}
-
-      {(recognition || nutrition) && (
-        <section className="result-controls" aria-label="Adjust the estimate">
-          {recognition ? (
-            <>
-              <div className="detected">
-                <span className="detected-label">Detected</span>
-                <strong className="detected-value">{label}</strong>
-                {typeof recognition.confidence === 'number' &&
-                  recognition.confidence > 0 &&
-                  label === recognition.label && (
-                    <span className="confidence">
-                      {Math.round(recognition.confidence * 100)}% sure
-                    </span>
-                  )}
-              </div>
-
-              <div className="candidates">
-                <span className="candidates-label">
-                  {allCandidates.length > 1
-                    ? 'Not right? Pick another or type it:'
-                    : 'Not right? Type the correct food:'}
-                </span>
-                {allCandidates.length > 1 && (
-                  <div className="chips">
-                    {allCandidates.map((c) => (
-                      <button
-                        key={c}
-                        className={`chip ${c === label ? 'chip-active' : ''}`}
-                        onClick={() => onPickCandidate(c)}
-                        disabled={busy}
-                        aria-pressed={c === label}
-                      >
-                        {c}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <form className="correct" onSubmit={submitCorrection}>
-                  <input
-                    type="text"
-                    placeholder="type the correct food"
-                    value={correctionDraft}
-                    onChange={(e) => setCorrectionDraft(e.target.value)}
-                    disabled={busy}
-                    aria-label="Correct the food by name"
-                  />
-                  <button
-                    type="submit"
-                    className="btn btn-sm"
-                    disabled={busy || !correctionDraft.trim()}
-                  >
-                    Use
-                  </button>
-                </form>
-              </div>
-            </>
           ) : (
-            <div className="detected">
-              <span className="detected-label">Found</span>
-              <strong className="detected-value">{nutrition.name}</strong>
+            <>
+              <section className="capture" aria-label="Capture a photo">
+                <label className={`btn ${busy ? 'is-disabled' : ''}`}>
+                  Upload a photo
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={onFile}
+                    hidden
+                    disabled={busy}
+                  />
+                </label>
+                <button
+                  className="btn"
+                  onClick={() => setCameraOpen(true)}
+                  disabled={busy}
+                >
+                  Use camera
+                </button>
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => runPipeline(SAMPLE_IMAGE, null)}
+                  disabled={busy}
+                >
+                  Try a sample
+                </button>
+              </section>
+
+              <div className="or-divider">
+                <span>or add a food by name</span>
+              </div>
+
+              <form className="search" onSubmit={onAddSubmit}>
+                <input
+                  type="text"
+                  placeholder="e.g. grilled chicken breast"
+                  value={addQuery}
+                  onChange={(e) => setAddQuery(e.target.value)}
+                  aria-label="Add a food by name"
+                />
+                <button type="submit" className="btn" disabled={!addQuery.trim()}>
+                  Add
+                </button>
+              </form>
+            </>
+          )}
+
+          {preview && (
+            <figure className="preview">
+              <img src={preview} alt="Captured food" className="preview-img" />
+            </figure>
+          )}
+
+          {status === 'recognizing' && (
+            <p className="state state-busy">Identifying the foods…</p>
+          )}
+
+          {status === 'unrecognized' && (
+            <div className="state state-warn" role="status">
+              <p>
+                Couldn&rsquo;t recognize any food in that image. Try another
+                photo, or add a food by name — we won&rsquo;t show made-up
+                numbers.
+              </p>
+              <button className="btn btn-ghost btn-sm" onClick={startOver}>
+                Try again
+              </button>
             </div>
           )}
 
-          <label className="grams">
-            <span className="grams-label">Weight in grams</span>
-            <input
-              type="number"
-              min="0"
-              inputMode="decimal"
-              placeholder="leave blank for a typical serving"
-              value={grams}
-              onChange={(e) => setGrams(e.target.value)}
-              disabled={busy}
-            />
-            <span className="grams-hint">
-              Weigh the food only — tare the plate first.
-            </span>
-          </label>
-        </section>
-      )}
+          {status === 'error' && (
+            <div className="state state-error" role="alert">
+              <p>{error || 'Something went wrong.'}</p>
+              <button className="btn btn-ghost btn-sm" onClick={startOver}>
+                Start over
+              </button>
+            </div>
+          )}
 
-      {result && nutrition && (
-        <NutritionCard name={nutrition.name} result={result} />
-      )}
-
-      {result && nutrition && (
-        <button
-          className={`btn btn-block ${justLogged ? 'btn-ghost' : ''}`}
-          onClick={justLogged ? () => setView('log') : logCurrentMeal}
-        >
-          {justLogged ? 'Logged ✓ — View log' : 'Log this meal'}
-        </button>
-      )}
-
-          {(preview || nutrition) && status !== 'idle' && (
-            <button className="btn btn-ghost btn-block" onClick={startOver}>
-              {recognition ? 'New photo' : 'New search'}
-            </button>
+          {mealItems.length > 0 && (
+            <>
+              <MealBuilder
+                items={mealItems}
+                onSetGrams={setItemGrams}
+                onRemove={removeMealItem}
+                onRename={renameMealItem}
+                onLogMeal={logMeal}
+                justLogged={justLogged}
+                onViewLog={() => setView('log')}
+              />
+              <button className="btn btn-ghost btn-block" onClick={startOver}>
+                Start over
+              </button>
+            </>
           )}
         </>
       )}

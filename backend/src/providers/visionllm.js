@@ -38,33 +38,35 @@ const SUPPORTED_MEDIA_TYPES = new Set([
 
 // The prompt is strict about JSON-only output AND about the non-food / unsure
 // escape hatch, so the model itself can decline rather than hallucinate a dish.
-const SYSTEM_PROMPT = `You are a food recognition system. You are given a single photo.
+const SYSTEM_PROMPT = `You are a food recognition system. You are given a single
+photo of a meal that may contain MULTIPLE separate foods or dishes.
 
-Identify the most likely prepared dish or food item in the photo.
+List each DISTINCT food or dish you can identify, most prominent first.
 
 Respond with a SINGLE JSON object and NOTHING else — no prose, no markdown, no
 code fences. The JSON object must have exactly these keys:
 
 {
-  "isFood": boolean,            // false if the image is not food (a person, a
-                                //   landscape, a screenshot, an empty plate...)
-  "label": string | null,      // the single best dish name, lowercase, concise
-                                //   (e.g. "grilled chicken breast", "margherita
-                                //   pizza"). null if isFood is false or you are
-                                //   not reasonably sure.
-  "confidence": number,        // 0..1, your calibrated confidence in "label".
-  "candidates": string[]       // 2-3 plausible ALTERNATIVE dish names, lowercase,
-                                //   excluding "label". [] if isFood is false.
+  "isFood": boolean,        // false if the image has no food at all (a person,
+                            //   a landscape, a screenshot, an empty plate...)
+  "items": [                // one entry per distinct food/dish; [] if not food
+    {
+      "label": string,      // dish/food name, lowercase, concise
+                            //   (e.g. "grilled chicken breast", "white rice")
+      "confidence": number  // 0..1, your calibrated confidence in THIS item
+    }
+  ]
 }
 
 Rules:
+- Treat each separate food as its own item (a plate of chicken, rice, and salad
+  is THREE items). Do NOT split one dish into ingredients — a pizza is one item,
+  not crust + cheese + sauce.
 - Prefer the name of the finished/cooked dish, not raw ingredients.
-- If it is clearly not food, set isFood=false, label=null, confidence=0,
-  candidates=[].
-- If it is food but you cannot identify it with reasonable confidence, set
-  label=null and a low confidence; still suggest candidates if you have guesses.
-- Never invent a precise dish you are not actually seeing. Honest uncertainty is
-  better than a confident wrong answer.`;
+- Order items by prominence; include at most 6.
+- If it is clearly not food, set isFood=false and items=[].
+- Only include items you are reasonably sure about. Fewer honest items beat
+  confident wrong guesses.`;
 
 /**
  * Split a data URL or raw base64 string into { mediaType, data } suitable for
@@ -162,28 +164,32 @@ export function normalizeRecognition(raw, unrecognized) {
   // Explicit non-food signal.
   if (raw.isFood === false) return unsure;
 
-  const label = cleanLabel(raw.label);
-  if (!label) return unsure;
+  // Prefer the items array; tolerate an old single-{label,confidence} shape.
+  let rawItems = Array.isArray(raw.items) ? raw.items : null;
+  if (!rawItems && cleanLabel(raw.label)) {
+    rawItems = [{ label: raw.label, confidence: raw.confidence }];
+  }
+  if (!rawItems) return unsure;
 
-  let confidence = Number(raw.confidence);
-  if (!Number.isFinite(confidence)) confidence = 0;
-  confidence = Math.min(1, Math.max(0, confidence));
-  if (confidence <= MIN_CONFIDENCE) return unsure;
+  const seen = new Set();
+  const items = [];
+  for (const entry of rawItems) {
+    if (!entry || typeof entry !== 'object') continue;
+    const label = cleanLabel(entry.label);
+    if (!label || seen.has(label)) continue;
 
-  const seen = new Set([label]);
-  const candidates = [];
-  if (Array.isArray(raw.candidates)) {
-    for (const c of raw.candidates) {
-      const cleaned = cleanLabel(c);
-      if (cleaned && !seen.has(cleaned)) {
-        seen.add(cleaned);
-        candidates.push(cleaned);
-      }
-      if (candidates.length >= 3) break;
-    }
+    let confidence = Number(entry.confidence);
+    if (!Number.isFinite(confidence)) confidence = 0;
+    confidence = Math.min(1, Math.max(0, confidence));
+    if (confidence <= MIN_CONFIDENCE) continue;
+
+    seen.add(label);
+    items.push({ label, confidence });
+    if (items.length >= 6) break;
   }
 
-  return { label, confidence, candidates, unrecognized: false };
+  if (items.length === 0) return unsure;
+  return { items, unrecognized: false };
 }
 
 /**
@@ -230,7 +236,7 @@ export async function recognizeWithVisionLLM({ imageBase64 }, unrecognized) {
               data: image.data,
             },
           },
-          { type: 'text', text: 'Identify the food in this photo.' },
+          { type: 'text', text: 'Identify the foods in this photo.' },
         ],
       },
     ],

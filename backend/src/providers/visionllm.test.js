@@ -10,9 +10,7 @@ import {
 } from './visionllm.js';
 
 const UNRECOGNIZED = Object.freeze({
-  label: null,
-  confidence: 0,
-  candidates: [],
+  items: [],
   unrecognized: true,
 });
 
@@ -66,68 +64,76 @@ describe('extractJsonObject', () => {
 });
 
 describe('normalizeRecognition', () => {
-  it('accepts a confident food result and lowercases/dedupes candidates', () => {
+  it('accepts multiple confident items, lowercased and deduped, order kept', () => {
     const out = normalizeRecognition(
       {
         isFood: true,
-        label: 'Grilled Chicken Breast',
-        confidence: 0.9,
-        candidates: ['Roast Chicken', 'grilled chicken breast', 'Chicken Salad'],
+        items: [
+          { label: 'Grilled Chicken Breast', confidence: 0.9 },
+          { label: 'White Rice', confidence: 0.8 },
+          { label: 'grilled chicken breast', confidence: 0.7 }, // dup
+        ],
       },
       UNRECOGNIZED
     );
-    expect(out.label).toBe('grilled chicken breast');
-    expect(out.confidence).toBe(0.9);
-    // duplicate of label removed, rest lowercased
-    expect(out.candidates).toEqual(['roast chicken', 'chicken salad']);
     expect(out.unrecognized).toBe(false);
+    expect(out.items).toEqual([
+      { label: 'grilled chicken breast', confidence: 0.9 },
+      { label: 'white rice', confidence: 0.8 },
+    ]);
   });
 
-  it('falls back to unrecognized when isFood is false', () => {
+  it('drops items at/under the confidence floor, keeps the rest', () => {
     const out = normalizeRecognition(
-      { isFood: false, label: null, confidence: 0, candidates: [] },
+      {
+        isFood: true,
+        items: [
+          { label: 'caesar salad', confidence: 0.8 },
+          { label: 'mystery garnish', confidence: 0.1 },
+        ],
+      },
       UNRECOGNIZED
     );
-    expect(out.unrecognized).toBe(true);
-    expect(out.label).toBeNull();
-  });
-
-  it('falls back when confidence is at/under the floor', () => {
-    const out = normalizeRecognition(
-      { isFood: true, label: 'mystery stew', confidence: 0.1, candidates: [] },
-      UNRECOGNIZED
-    );
-    expect(out.unrecognized).toBe(true);
-  });
-
-  it('falls back when label is missing', () => {
-    const out = normalizeRecognition(
-      { isFood: true, label: null, confidence: 0.95, candidates: ['x'] },
-      UNRECOGNIZED
-    );
-    expect(out.unrecognized).toBe(true);
+    expect(out.items).toEqual([{ label: 'caesar salad', confidence: 0.8 }]);
   });
 
   it('clamps out-of-range / garbage confidence', () => {
     const out = normalizeRecognition(
-      { isFood: true, label: 'pho', confidence: 5, candidates: [] },
+      { isFood: true, items: [{ label: 'pho', confidence: 5 }] },
       UNRECOGNIZED
     );
-    expect(out.confidence).toBe(1);
-    expect(out.unrecognized).toBe(false);
+    expect(out.items[0].confidence).toBe(1);
   });
 
-  it('caps candidates at 3', () => {
+  it('caps items at 6', () => {
+    const items = Array.from({ length: 9 }, (_, i) => ({
+      label: `food ${i}`,
+      confidence: 0.9,
+    }));
+    const out = normalizeRecognition({ isFood: true, items }, UNRECOGNIZED);
+    expect(out.items).toHaveLength(6);
+  });
+
+  it('tolerates the legacy single-{label} shape', () => {
     const out = normalizeRecognition(
-      {
-        isFood: true,
-        label: 'soup',
-        confidence: 0.8,
-        candidates: ['a', 'b', 'c', 'd', 'e'],
-      },
+      { isFood: true, label: 'Tacos', confidence: 0.8 },
       UNRECOGNIZED
     );
-    expect(out.candidates).toHaveLength(3);
+    expect(out.items).toEqual([{ label: 'tacos', confidence: 0.8 }]);
+  });
+
+  it('falls back to unrecognized when isFood is false', () => {
+    const out = normalizeRecognition({ isFood: false, items: [] }, UNRECOGNIZED);
+    expect(out.unrecognized).toBe(true);
+    expect(out.items).toEqual([]);
+  });
+
+  it('falls back when no item clears the floor', () => {
+    const out = normalizeRecognition(
+      { isFood: true, items: [{ label: 'blur', confidence: 0.05 }] },
+      UNRECOGNIZED
+    );
+    expect(out.unrecognized).toBe(true);
   });
 
   it('falls back on null / non-object input', () => {

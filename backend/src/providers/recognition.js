@@ -21,9 +21,7 @@
 import { recognizeWithVisionLLM } from './visionllm.js';
 
 export const UNRECOGNIZED = Object.freeze({
-  label: null,
-  confidence: 0,
-  candidates: [],
+  items: [],
   unrecognized: true,
 });
 
@@ -43,10 +41,12 @@ async function mockRecognizer({ imageBase64 }) {
     return { ...UNRECOGNIZED };
   }
 
+  // Two items so the multi-dish meal builder is demoable without a real model.
   return {
-    label: 'spaghetti carbonara',
-    confidence: 0.82,
-    candidates: ['spaghetti bolognese', 'fettuccine alfredo', 'cacio e pepe'],
+    items: [
+      { label: 'grilled chicken breast', confidence: 0.9 },
+      { label: 'white rice', confidence: 0.78 },
+    ],
     unrecognized: false,
   };
 }
