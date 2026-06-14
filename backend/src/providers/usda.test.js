@@ -44,6 +44,38 @@ describe('scoreFood — cooked vs raw', () => {
   });
 });
 
+describe('scoreFood — raw-eaten foods (fruit/veg)', () => {
+  it('prefers the raw entry over a baked one for fruit', () => {
+    expect(scoreFood(food('Bananas, raw'), 'banana')).toBeGreaterThan(
+      scoreFood(food('Banana, baked'), 'banana')
+    );
+  });
+
+  it('avoids the dried/dehydrated form for fruit', () => {
+    expect(scoreFood(food('Bananas, raw'), 'banana')).toBeGreaterThan(
+      scoreFood(food('Bananas, dehydrated'), 'banana')
+    );
+  });
+
+  it('does not flip the bias for foods eaten cooked (chicken)', () => {
+    expect(scoreFood(food('Chicken breast, cooked'), 'chicken breast')).toBeGreaterThan(
+      scoreFood(food('Chicken breast, raw'), 'chicken breast')
+    );
+  });
+
+  it('selectBestFood picks raw banana from a mixed set', () => {
+    const best = selectBestFood(
+      [
+        food('Banana, baked'),
+        food('Bananas, dehydrated'),
+        food('Bananas, raw'),
+      ],
+      'banana'
+    );
+    expect(best.description).toBe('Bananas, raw');
+  });
+});
+
 describe('selectBestFood', () => {
   it('picks the cooked entry from a mixed result set', () => {
     const foods = [
@@ -91,6 +123,23 @@ describe('mapFoodToNutrition', () => {
       foodNutrients: [{ nutrient: { number: '208' }, amount: 130 }],
     });
     expect(mapFoodToNutrition(f).per100g.kcal).toBe(130);
+  });
+
+  it('falls back to Atwater energy (957) when 208 is absent', () => {
+    const f = food('Apples, raw', {
+      foodNutrients: [
+        { nutrientNumber: '957', value: 52 }, // Atwater general, no 208
+        { nutrientNumber: '205', value: 13.8 },
+      ],
+    });
+    expect(mapFoodToNutrition(f).per100g.kcal).toBe(52);
+  });
+
+  it('converts kJ (268) to kcal when no kcal nutrient is present', () => {
+    const f = food('Something, raw', {
+      foodNutrients: [{ nutrientNumber: '268', value: 418.4 }], // 418.4 kJ -> 100 kcal
+    });
+    expect(mapFoodToNutrition(f).per100g.kcal).toBe(100);
   });
 });
 

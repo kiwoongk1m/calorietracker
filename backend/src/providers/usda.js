@@ -43,6 +43,24 @@ const COOKED_WORDS = [
 // Words that signal a raw/uncooked entry (penalized — we weigh cooked food).
 const RAW_WORDS = ['raw', 'uncooked', 'dry', 'dried', 'frozen, unprepared'];
 
+// Foods normally eaten raw. For these we FLIP the bias: prefer the raw/plain
+// entry (e.g. "banana" -> "Bananas, raw", not "Banana, baked") and avoid the
+// dried/dehydrated form (which is calorically very different). Matched as
+// substrings of the query, so plurals are covered.
+const RAW_EATEN = [
+  'apple', 'banana', 'orange', 'grape', 'strawberr', 'blueberr', 'raspberr',
+  'blackberr', 'cranberr', 'berry', 'berries', 'mango', 'pineapple',
+  'watermelon', 'melon', 'cantaloupe', 'peach', 'pear', 'plum', 'cherry',
+  'cherries', 'kiwi', 'apricot', 'fig', 'pomegranate', 'nectarine',
+  'clementine', 'mandarin', 'tangerine', 'grapefruit', 'lemon', 'lime',
+  'papaya', 'guava', 'persimmon', 'lychee', 'avocado',
+  'lettuce', 'cucumber', 'celery', 'spinach',
+];
+
+function prefersRaw(q) {
+  return RAW_EATEN.some((term) => q.includes(term));
+}
+
 // Data types preference: Foundation/SR Legacy are clean reference entries;
 // Survey (FNDDS) holds many composite prepared dishes; Branded is noisiest.
 const DATA_TYPE_SCORE = {
@@ -78,9 +96,23 @@ export function scoreFood(food, query) {
   const matched = qTerms.filter((t) => desc.includes(t)).length;
   if (qTerms.length > 0) score += (matched / qTerms.length) * 3;
 
-  // Cooked vs raw bias — the core gotcha.
-  if (COOKED_WORDS.some((w) => desc.includes(w))) score += 3;
-  if (RAW_WORDS.some((w) => desc.includes(w))) score -= 3;
+  // Cooked vs raw bias — the core gotcha. We weigh a finished plate, so prefer
+  // cooked entries... except for foods normally eaten raw (fruit, salad veg),
+  // where we flip it: prefer the raw/plain entry and avoid cooked/dried forms.
+  const cooked = COOKED_WORDS.some((w) => desc.includes(w));
+  if (prefersRaw(q)) {
+    const isRaw = desc.includes('raw') || desc.includes('uncooked');
+    const isDried =
+      desc.includes('dried') || desc.includes('dry') || desc.includes('dehydrated');
+    if (isRaw) score += 4;
+    if (cooked) score -= 3;
+    if (isDried) score -= 3;
+    // Non-flesh parts aren't the fruit a user means (e.g. "Orange peel, raw").
+    if (/\b(peel|rind|zest)\b/.test(desc)) score -= 5;
+  } else {
+    if (cooked) score += 3;
+    if (RAW_WORDS.some((w) => desc.includes(w))) score -= 3;
+  }
 
   // Prefer cleaner data types.
   score += DATA_TYPE_SCORE[food.dataType] || 0;
@@ -123,6 +155,19 @@ function readNutrient(food, number) {
   return 0;
 }
 
+// Energy lives under different USDA nutrient numbers by dataset: 208 = Energy
+// (kcal), 957/958 = Atwater general/specific factors (kcal). Some Foundation
+// entries omit 208 (e.g. raw fruit), so fall back across them; last resort,
+// convert from kJ (268). Without this, those entries read as 0 kcal.
+function readEnergyKcal(food) {
+  for (const num of ['208', '957', '958']) {
+    const v = readNutrient(food, num);
+    if (v > 0) return v;
+  }
+  const kj = readNutrient(food, '268');
+  return kj > 0 ? kj / 4.184 : 0;
+}
+
 /**
  * Estimate a sensible default serving size in grams from USDA serving metadata,
  * falling back to a generic plate-portion. Pure.
@@ -149,7 +194,7 @@ export function mapFoodToNutrition(food) {
     fdcId: String(food.fdcId),
     name: food.description,
     per100g: {
-      kcal: round1(readNutrient(food, NUTRIENT_NUMBERS.kcal)),
+      kcal: round1(readEnergyKcal(food)),
       protein: round1(readNutrient(food, NUTRIENT_NUMBERS.protein)),
       carbs: round1(readNutrient(food, NUTRIENT_NUMBERS.carbs)),
       fat: round1(readNutrient(food, NUTRIENT_NUMBERS.fat)),
