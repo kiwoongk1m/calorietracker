@@ -11,6 +11,9 @@ import {
   weightStats,
   chronological,
   chartPoints,
+  weightsInRange,
+  rangeStats,
+  chartSeries,
 } from './weight.js';
 
 beforeEach(() => {
@@ -115,5 +118,65 @@ describe('chronological & chartPoints', () => {
   });
   it('returns [] for no data', () => {
     expect(chartPoints([], 100, 100)).toEqual([]);
+  });
+});
+
+describe('weightsInRange', () => {
+  const now = new Date('2026-06-14T12:00:00').getTime();
+  const w = [
+    { id: 'a', timestamp: '2026-06-13T08:00:00', kg: 80 }, // 1 day ago
+    { id: 'b', timestamp: '2026-05-20T08:00:00', kg: 81 }, // ~25 days ago
+    { id: 'c', timestamp: '2026-02-01T08:00:00', kg: 84 }, // ~133 days ago
+  ];
+  it('filters to the last N days', () => {
+    expect(weightsInRange(w, 7, now).map((e) => e.id)).toEqual(['a']);
+    expect(weightsInRange(w, 30, now).map((e) => e.id)).toEqual(['a', 'b']);
+    expect(weightsInRange(w, 365, now).map((e) => e.id)).toEqual(['a', 'b', 'c']);
+  });
+  it('returns all when days is null', () => {
+    expect(weightsInRange(w, null, now)).toHaveLength(3);
+  });
+});
+
+describe('rangeStats', () => {
+  it('computes change/min/max/avg over the set', () => {
+    const s = rangeStats([
+      { timestamp: '2026-06-10T08:00:00', kg: 82 },
+      { timestamp: '2026-06-12T08:00:00', kg: 80 },
+      { timestamp: '2026-06-14T08:00:00', kg: 81 },
+    ]);
+    expect(s.first).toBe(82);
+    expect(s.latest).toBe(81);
+    expect(s.change).toBe(-1); // 81 - 82
+    expect(s.min).toBe(80);
+    expect(s.max).toBe(82);
+    expect(s.avg).toBe(81);
+  });
+  it('is null for empty', () => {
+    expect(rangeStats([])).toBeNull();
+  });
+});
+
+describe('chartSeries (time-mapped)', () => {
+  it('positions x by timestamp and returns min/max + endpoints', () => {
+    const s = chartSeries(
+      [
+        { timestamp: '2026-06-10T00:00:00', kg: 82 },
+        { timestamp: '2026-06-12T00:00:00', kg: 81 }, // midpoint in time
+        { timestamp: '2026-06-14T00:00:00', kg: 80 },
+      ],
+      100,
+      100,
+      0
+    );
+    expect(s.points).toHaveLength(3);
+    expect(s.points[0].x).toBe(0);
+    expect(s.points[1].x).toBe(50); // even time spacing -> middle
+    expect(s.points[2].x).toBe(100);
+    expect(s.min).toBe(80);
+    expect(s.max).toBe(82);
+  });
+  it('returns an empty series for no data', () => {
+    expect(chartSeries([], 100, 100).points).toEqual([]);
   });
 });

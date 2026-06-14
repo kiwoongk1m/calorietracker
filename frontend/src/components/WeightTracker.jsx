@@ -1,15 +1,23 @@
-// Weight tracking view: current weight (with kg/lb toggle and count-up), trend
-// sparkline, an input to log today's weight, and a deletable history list.
-// Presentational — data + mutations come from App. Weights are stored in kg;
-// this component converts to the chosen display unit.
+// Weight tab: current weight (count-up, kg/lb toggle), a 1W/1M/3M/1Y range
+// selector that drives a time-based trend chart + range summary, an input to
+// log today's weight, and a deletable history. Weights are stored in kg; this
+// component converts to the chosen display unit.
 
 import { useState } from 'react';
-import { kgToUnit, unitToKg, weightStats, chartPoints } from '../lib/weight.js';
+import {
+  kgToUnit,
+  unitToKg,
+  weightStats,
+  weightsInRange,
+  rangeStats,
+  chartSeries,
+  WEIGHT_RANGES,
+} from '../lib/weight.js';
 import { useCountUp } from '../hooks/useCountUp.js';
 
-const CW = 320;
-const CH = 110;
-const PAD = 12;
+const CW = 340;
+const CH = 120;
+const PAD = 14;
 
 function fmtDate(ts) {
   return new Date(ts).toLocaleDateString(undefined, {
@@ -18,32 +26,125 @@ function fmtDate(ts) {
   });
 }
 
-function ChangePill({ deltaUnit, unit }) {
+function ChangePill({ deltaUnit, unit, suffix }) {
   if (deltaUnit == null) return null;
   const dir = deltaUnit < -0.05 ? 'down' : deltaUnit > 0.05 ? 'up' : 'flat';
   const arrow = dir === 'down' ? '↓' : dir === 'up' ? '↑' : '→';
   return (
     <span className={`weight-change weight-change-${dir}`}>
       {arrow} {Math.abs(deltaUnit).toFixed(1)} {unit}
+      {suffix ? ` ${suffix}` : ''}
     </span>
+  );
+}
+
+function WeightChart({ series, unit }) {
+  const { points, min, max } = series;
+  if (points.length < 2) {
+    return (
+      <div className="weight-chart-empty">
+        Not enough data in this range yet — keep logging.
+      </div>
+    );
+  }
+  const baseline = CH - PAD;
+  const line = points.map((p) => `${p.x},${p.y}`).join(' ');
+  const area =
+    `M ${points[0].x},${baseline} ` +
+    points.map((p) => `L ${p.x},${p.y}`).join(' ') +
+    ` L ${points[points.length - 1].x},${baseline} Z`;
+  const last = points[points.length - 1];
+  const maxLabel = kgToUnit(max, unit).toFixed(1);
+  const minLabel = kgToUnit(min, unit).toFixed(1);
+
+  return (
+    <svg
+      className="weight-chart"
+      viewBox={`0 0 ${CW} ${CH + 22}`}
+      role="img"
+      aria-label="Weight trend"
+    >
+      <defs>
+        <linearGradient id="weight-fill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.22" />
+          <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+
+      {/* faint gridlines */}
+      {[PAD, (PAD + baseline) / 2, baseline].map((y, i) => (
+        <line
+          key={i}
+          x1="0"
+          y1={y}
+          x2={CW}
+          y2={y}
+          stroke="var(--line)"
+          strokeWidth="1"
+        />
+      ))}
+
+      <path d={area} fill="url(#weight-fill)" />
+      <polyline
+        points={line}
+        fill="none"
+        stroke="var(--accent)"
+        strokeWidth="2.5"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+      {points.map((p, i) => (
+        <circle
+          key={i}
+          cx={p.x}
+          cy={p.y}
+          r={i === points.length - 1 ? 4 : 2.5}
+          fill={i === points.length - 1 ? 'var(--accent-deep)' : 'var(--card)'}
+          stroke="var(--accent)"
+          strokeWidth="2"
+        />
+      ))}
+
+      {/* y-axis min/max labels */}
+      <text className="chart-axis" x="3" y={PAD + 4}>
+        {maxLabel}
+      </text>
+      <text className="chart-axis" x="3" y={baseline}>
+        {minLabel}
+      </text>
+      {/* x-axis start/end dates */}
+      <text className="chart-axis" x="0" y={CH + 16} textAnchor="start">
+        {fmtDate(series.firstTs)}
+      </text>
+      <text className="chart-axis" x={CW} y={CH + 16} textAnchor="end">
+        {fmtDate(series.lastTs)}
+      </text>
+      {/* latest value label */}
+      <text
+        className="chart-value"
+        x={Math.min(CW - 2, last.x)}
+        y={Math.max(12, last.y - 8)}
+        textAnchor="end"
+      >
+        {kgToUnit(last.kg, unit).toFixed(1)}
+      </text>
+    </svg>
   );
 }
 
 export default function WeightTracker({ weights, unit, onAdd, onDelete, onSetUnit }) {
   const [draft, setDraft] = useState('');
-  const stats = weightStats(weights);
-  const animated = useCountUp(stats ? kgToUnit(stats.latest, unit) : 0, {
+  const [range, setRange] = useState('1M');
+
+  const overall = weightStats(weights);
+  const animated = useCountUp(overall ? kgToUnit(overall.latest, unit) : 0, {
     decimals: 1,
   });
 
-  const pts = chartPoints(weights, CW, CH, PAD);
-  const linePts = pts.map((p) => `${p.x},${p.y}`).join(' ');
-  const areaPath =
-    pts.length >= 2
-      ? `M ${pts[0].x},${CH - PAD} ` +
-        pts.map((p) => `L ${p.x},${p.y}`).join(' ') +
-        ` L ${pts[pts.length - 1].x},${CH - PAD} Z`
-      : '';
+  const rangeDef = WEIGHT_RANGES.find((r) => r.id === range) || WEIGHT_RANGES[1];
+  const inRange = weightsInRange(weights, rangeDef.days);
+  const stats = rangeStats(inRange);
+  const series = chartSeries(inRange, CW, CH, PAD);
 
   function submit(e) {
     e.preventDefault();
@@ -73,72 +174,52 @@ export default function WeightTracker({ weights, unit, onAdd, onDelete, onSetUni
           </div>
         </div>
 
-        {stats ? (
-          <>
-            <div className="weight-today-value">
-              <span className="weight-kg">{animated.toFixed(1)}</span>
-              <span className="weight-unit">{unit}</span>
-            </div>
-            {stats.count > 1 && (
-              <div className="weight-deltas">
-                <span className="weight-delta-item">
-                  vs last{' '}
-                  <ChangePill
-                    deltaUnit={kgToUnit(stats.changeSincePrevious, unit)}
-                    unit={unit}
-                  />
-                </span>
-                <span className="weight-delta-item">
-                  since start{' '}
-                  <ChangePill
-                    deltaUnit={kgToUnit(stats.changeSinceStart, unit)}
-                    unit={unit}
-                  />
-                </span>
-              </div>
-            )}
-          </>
+        {overall ? (
+          <div className="weight-today-value">
+            <span className="weight-kg">{animated.toFixed(1)}</span>
+            <span className="weight-unit">{unit}</span>
+          </div>
         ) : (
           <p className="weight-empty-inline">
             Log your weight below to start tracking.
           </p>
         )}
 
-        {pts.length >= 2 && (
-          <svg
-            className="weight-chart"
-            viewBox={`0 0 ${CW} ${CH}`}
-            preserveAspectRatio="none"
-            role="img"
-            aria-label="Weight trend over time"
-          >
-            <defs>
-              <linearGradient id="weight-fill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.22" />
-                <stop offset="100%" stopColor="var(--accent)" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-            <path d={areaPath} fill="url(#weight-fill)" />
-            <polyline
-              points={linePts}
-              fill="none"
-              stroke="var(--accent)"
-              strokeWidth="2.5"
-              strokeLinejoin="round"
-              strokeLinecap="round"
-            />
-            {pts.map((p, i) => (
-              <circle
-                key={i}
-                cx={p.x}
-                cy={p.y}
-                r={i === pts.length - 1 ? 4 : 2.5}
-                fill={i === pts.length - 1 ? 'var(--accent-deep)' : 'var(--card)'}
-                stroke="var(--accent)"
-                strokeWidth="2"
-              />
-            ))}
-          </svg>
+        {overall && (
+          <>
+            <div className="weight-ranges" role="group" aria-label="Time range">
+              {WEIGHT_RANGES.map((r) => (
+                <button
+                  key={r.id}
+                  className={`range-btn ${range === r.id ? 'range-active' : ''}`}
+                  onClick={() => setRange(r.id)}
+                  aria-pressed={range === r.id}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+
+            {stats && stats.count > 1 ? (
+              <div className="weight-range-summary">
+                <span className="weight-delta-item">
+                  {rangeDef.label} change
+                  <ChangePill deltaUnit={kgToUnit(stats.change, unit)} unit={unit} />
+                </span>
+                <span className="weight-range-extra">
+                  avg {kgToUnit(stats.avg, unit).toFixed(1)} · range{' '}
+                  {kgToUnit(stats.min, unit).toFixed(1)}–
+                  {kgToUnit(stats.max, unit).toFixed(1)} {unit}
+                </span>
+              </div>
+            ) : (
+              <p className="weight-range-summary weight-range-extra">
+                One weigh-in in this range — log more to see a trend.
+              </p>
+            )}
+
+            <WeightChart series={series} unit={unit} />
+          </>
         )}
       </div>
 
