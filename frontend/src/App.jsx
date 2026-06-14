@@ -23,9 +23,19 @@ import {
   sumNutrition,
   dayKey,
 } from './lib/log.js';
+import {
+  getWeights,
+  addWeight,
+  deleteWeight,
+  getUnit,
+  setUnit as persistUnit,
+  weightStats,
+  kgToUnit,
+} from './lib/weight.js';
 import NutritionCard from './components/NutritionCard.jsx';
 import CameraCapture from './components/CameraCapture.jsx';
 import MealLog from './components/MealLog.jsx';
+import WeightTracker from './components/WeightTracker.jsx';
 
 // A hard-coded stand-in "photo" for the sample button. The mock recognizer
 // ignores the bytes; a real image flows through unchanged with the real
@@ -47,8 +57,12 @@ export default function App() {
   // Meal log + daily tracking (persisted in localStorage via lib/log.js).
   const [entries, setEntries] = useState(() => getEntries());
   const [goal, setGoalState] = useState(() => getGoal());
-  const [view, setView] = useState('estimate'); // 'estimate' | 'log'
+  const [view, setView] = useState('estimate'); // 'estimate' | 'log' | 'weight'
   const [justLogged, setJustLogged] = useState(false);
+
+  // Body-weight tracking (persisted in localStorage via lib/weight.js).
+  const [weights, setWeights] = useState(() => getWeights());
+  const [weightUnit, setWeightUnit] = useState(() => getUnit());
 
   const todayKcal = useMemo(() => {
     const today = dayKey(new Date());
@@ -173,6 +187,23 @@ export default function App() {
     setGoalState(persistGoal(value));
   }
 
+  function handleAddWeight(kg) {
+    setWeights(addWeight({ kg }));
+  }
+
+  function handleDeleteWeight(id) {
+    setWeights(deleteWeight(id));
+  }
+
+  function handleSetUnit(unit) {
+    setWeightUnit(persistUnit(unit));
+  }
+
+  const wStats = weightStats(weights);
+  const weightBadge = wStats
+    ? `${kgToUnit(wStats.latest, weightUnit).toFixed(1)} ${weightUnit}`
+    : 'no data';
+
   const busy = status === 'recognizing' || status === 'looking-up';
   const allCandidates = recognition
     ? [recognition.label, ...(recognition.candidates || [])].filter(
@@ -202,6 +233,13 @@ export default function App() {
         >
           Log
           <span className="tab-badge">{todayKcal.toLocaleString()} kcal today</span>
+        </button>
+        <button
+          className={`tab ${view === 'weight' ? 'tab-active' : ''}`}
+          onClick={() => setView('weight')}
+        >
+          Weight
+          <span className="tab-badge">{weightBadge}</span>
         </button>
       </nav>
 
@@ -238,14 +276,6 @@ export default function App() {
             disabled={busy}
           >
             Try a sample
-          </button>
-          <button
-            className="btn btn-ghost"
-            onClick={() => runPipeline('non-food', null)}
-            disabled={busy}
-            title="Demonstrates the graceful unrecognized state"
-          >
-            Try a non-food image
           </button>
         </section>
       )}
@@ -361,6 +391,16 @@ export default function App() {
           goal={goal}
           onDelete={handleDeleteEntry}
           onSetGoal={handleSetGoal}
+        />
+      )}
+
+      {view === 'weight' && (
+        <WeightTracker
+          weights={weights}
+          unit={weightUnit}
+          onAdd={handleAddWeight}
+          onDelete={handleDeleteWeight}
+          onSetUnit={handleSetUnit}
         />
       )}
     </main>

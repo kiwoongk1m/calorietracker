@@ -3,38 +3,18 @@
 //
 // Entries are persisted client-side (localStorage) so there is no auth/DB to
 // stand up and it works offline and inside the Android WebView. Storage I/O is
-// isolated behind store(); the grouping/summing logic is pure and unit-tested.
-// A future cloud-sync backend can replace store() without touching callers.
+// isolated in ./storage.js; the grouping/summing logic is pure and unit-tested.
+// A future cloud-sync backend can replace that module without touching callers.
 //
 // Entry shape:
 //   { id, timestamp, name, fdcId?, grams, basis, kcal, protein, carbs, fat }
 // ---------------------------------------------------------------------------
 
+import { storage, newId } from './storage.js';
+
 const ENTRIES_KEY = 'calorie-snap.log.v1';
 const GOAL_KEY = 'calorie-snap.goal.v1';
 const DEFAULT_GOAL = 2000;
-
-// --- storage backend (localStorage, with an in-memory fallback for private
-// mode / SSR / tests) --------------------------------------------------------
-let memory = {};
-function store() {
-  try {
-    if (typeof globalThis !== 'undefined' && globalThis.localStorage) {
-      return globalThis.localStorage;
-    }
-  } catch {
-    // accessing localStorage can throw in sandboxed contexts — fall through
-  }
-  return {
-    getItem: (k) => (k in memory ? memory[k] : null),
-    setItem: (k, v) => {
-      memory[k] = String(v);
-    },
-    removeItem: (k) => {
-      delete memory[k];
-    },
-  };
-}
 
 // --- pure helpers (unit-tested) ---------------------------------------------
 
@@ -95,7 +75,7 @@ export function groupByDay(entries = []) {
 
 export function getEntries() {
   try {
-    const raw = store().getItem(ENTRIES_KEY);
+    const raw = storage().getItem(ENTRIES_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
     return Array.isArray(parsed) ? parsed : [];
   } catch {
@@ -104,16 +84,7 @@ export function getEntries() {
 }
 
 function writeEntries(entries) {
-  store().setItem(ENTRIES_KEY, JSON.stringify(entries));
-}
-
-function newId() {
-  try {
-    if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
-  } catch {
-    /* ignore */
-  }
-  return `id-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  storage().setItem(ENTRIES_KEY, JSON.stringify(entries));
 }
 
 /**
@@ -147,7 +118,7 @@ export function deleteEntry(id) {
 }
 
 export function clearAll() {
-  store().removeItem(ENTRIES_KEY);
+  storage().removeItem(ENTRIES_KEY);
 }
 
 /** Today's summed totals. */
@@ -159,7 +130,7 @@ export function getTodayTotals(now = new Date()) {
 // --- daily goal -------------------------------------------------------------
 
 export function getGoal() {
-  const raw = store().getItem(GOAL_KEY);
+  const raw = storage().getItem(GOAL_KEY);
   const n = Number(raw);
   return Number.isFinite(n) && n > 0 ? n : DEFAULT_GOAL;
 }
@@ -167,7 +138,7 @@ export function getGoal() {
 export function setGoal(value) {
   const n = Number(value);
   if (Number.isFinite(n) && n > 0) {
-    store().setItem(GOAL_KEY, String(Math.round(n)));
+    storage().setItem(GOAL_KEY, String(Math.round(n)));
   }
   return getGoal();
 }

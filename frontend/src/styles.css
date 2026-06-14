@@ -779,3 +779,148 @@ body {
     transform: none;
   }
 }
+
+/* ---- Weight tracking ------------------------------------------------------*/
+.weight-today {
+  padding: 20px;
+  background: linear-gradient(180deg, #fffefb 0%, var(--card) 100%);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  margin-bottom: 20px;
+  animation: fadeUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.weight-today-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.weight-today-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.unit-toggle {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--bg-sunken);
+  border-radius: 999px;
+}
+.unit-btn {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--body);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 13px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+.unit-btn-active {
+  background: var(--card);
+  color: var(--accent-deep);
+  box-shadow: var(--shadow-sm);
+}
+
+.weight-today-value {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 10px 0 4px;
+}
+.weight-kg {
+  font-family: var(--display);
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--accent-deep);
+  font-variant-numeric: tabular-nums;
+}
+.weight-unit {
+  font-size: 18px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.weight-deltas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.weight-change {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.weight-change-down {
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+}
+.weight-change-up {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+.weight-change-flat {
+  background: var(--bg-sunken);
+  color: var(--muted);
+}
+.weight-empty-inline {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.weight-chart {
+  display: block;
+  width: 100%;
+  height: 110px;
+  margin-top: 16px;
+  overflow: visible;
+}
+
+.weight-input {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.weight-input input {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  font-size: 16px;
+  color: var(--ink);
+  background: var(--card);
+  transition:
+    border-color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+.weight-input input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.weight-input .btn {
+  flex: none;
+}
+
+/* Weight history reuses the log-entry row; keep the unit lowercase ("kg"). */
+.weight-history .log-entry-name {
+  text-transform: none;
+}
