@@ -53,6 +53,7 @@ export default function App() {
   const [nutrition, setNutrition] = useState(null); // contract nutrition object
   const [grams, setGrams] = useState('');
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState(''); // text food search
 
   // Meal log + daily tracking (persisted in localStorage via lib/log.js).
   const [entries, setEntries] = useState(() => getEntries());
@@ -92,7 +93,18 @@ export default function App() {
   function startOver() {
     resetResults();
     setPreview(null);
+    setSearchQuery('');
     setStatus('idle');
+  }
+
+  // Text search: skip recognition, go straight to the nutrition lookup -> card.
+  async function searchFood(e) {
+    e.preventDefault();
+    const q = searchQuery.trim();
+    if (!q) return;
+    resetResults();
+    setPreview(null);
+    await lookUp(q);
   }
 
   async function lookUp(query) {
@@ -216,7 +228,7 @@ export default function App() {
       <header className="app-head">
         <h1>Calorie Snap</h1>
         <p className="tagline">
-          Estimate a meal&rsquo;s calories &amp; macros from a photo.
+          Estimate a meal&rsquo;s calories &amp; macros from a photo or by name.
         </p>
       </header>
 
@@ -252,32 +264,56 @@ export default function App() {
           disabled={busy}
         />
       ) : (
-        <section className="capture" aria-label="Capture a photo">
-          <label className={`btn ${busy ? 'is-disabled' : ''}`}>
-            Upload a photo
-            <input
-              type="file"
-              accept="image/*"
-              onChange={onFile}
-              hidden
+        <>
+          <section className="capture" aria-label="Capture a photo">
+            <label className={`btn ${busy ? 'is-disabled' : ''}`}>
+              Upload a photo
+              <input
+                type="file"
+                accept="image/*"
+                onChange={onFile}
+                hidden
+                disabled={busy}
+              />
+            </label>
+            <button
+              className="btn"
+              onClick={() => setCameraOpen(true)}
               disabled={busy}
+            >
+              Use camera
+            </button>
+            <button
+              className="btn btn-ghost"
+              onClick={() => runPipeline(SAMPLE_IMAGE, null)}
+              disabled={busy}
+            >
+              Try a sample
+            </button>
+          </section>
+
+          <div className="or-divider">
+            <span>or search by name</span>
+          </div>
+
+          <form className="search" onSubmit={searchFood}>
+            <input
+              type="text"
+              placeholder="e.g. grilled chicken breast"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              disabled={busy}
+              aria-label="Search a food by name"
             />
-          </label>
-          <button
-            className="btn"
-            onClick={() => setCameraOpen(true)}
-            disabled={busy}
-          >
-            Use camera
-          </button>
-          <button
-            className="btn btn-ghost"
-            onClick={() => runPipeline(SAMPLE_IMAGE, null)}
-            disabled={busy}
-          >
-            Try a sample
-          </button>
-        </section>
+            <button
+              type="submit"
+              className="btn"
+              disabled={busy || !searchQuery.trim()}
+            >
+              Search
+            </button>
+          </form>
+        </>
       )}
 
       {preview && (
@@ -314,35 +350,46 @@ export default function App() {
         </div>
       )}
 
-      {recognition && (
+      {(recognition || nutrition) && (
         <section className="result-controls" aria-label="Adjust the estimate">
-          <div className="detected">
-            <span className="detected-label">Detected</span>
-            <strong className="detected-value">{label}</strong>
-            {typeof recognition.confidence === 'number' &&
-              recognition.confidence > 0 && (
-                <span className="confidence">
-                  {Math.round(recognition.confidence * 100)}% sure
-                </span>
-              )}
-          </div>
-
-          {allCandidates.length > 1 && (
-            <div className="candidates">
-              <span className="candidates-label">Not right? Pick another:</span>
-              <div className="chips">
-                {allCandidates.map((c) => (
-                  <button
-                    key={c}
-                    className={`chip ${c === label ? 'chip-active' : ''}`}
-                    onClick={() => onPickCandidate(c)}
-                    disabled={busy}
-                    aria-pressed={c === label}
-                  >
-                    {c}
-                  </button>
-                ))}
+          {recognition ? (
+            <>
+              <div className="detected">
+                <span className="detected-label">Detected</span>
+                <strong className="detected-value">{label}</strong>
+                {typeof recognition.confidence === 'number' &&
+                  recognition.confidence > 0 && (
+                    <span className="confidence">
+                      {Math.round(recognition.confidence * 100)}% sure
+                    </span>
+                  )}
               </div>
+
+              {allCandidates.length > 1 && (
+                <div className="candidates">
+                  <span className="candidates-label">
+                    Not right? Pick another:
+                  </span>
+                  <div className="chips">
+                    {allCandidates.map((c) => (
+                      <button
+                        key={c}
+                        className={`chip ${c === label ? 'chip-active' : ''}`}
+                        onClick={() => onPickCandidate(c)}
+                        disabled={busy}
+                        aria-pressed={c === label}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="detected">
+              <span className="detected-label">Found</span>
+              <strong className="detected-value">{nutrition.name}</strong>
             </div>
           )}
 
@@ -377,9 +424,9 @@ export default function App() {
         </button>
       )}
 
-          {preview && status !== 'idle' && (
+          {(preview || nutrition) && status !== 'idle' && (
             <button className="btn btn-ghost btn-block" onClick={startOver}>
-              New photo
+              {recognition ? 'New photo' : 'New search'}
             </button>
           )}
         </>

@@ -210,6 +210,52 @@ body {
 }
 
 /* ---- States ---------------------------------------------------------------*/
+/* ---- Text search ----------------------------------------------------------*/
+.or-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 2px 0 14px;
+  color: var(--muted);
+  font-size: 12.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.or-divider::before,
+.or-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.search {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+.search input {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  font-size: 16px;
+  color: var(--ink);
+  background: var(--card);
+  transition:
+    border-color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+.search input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.search .btn {
+  flex: none;
+}
+
 .state {
   padding: 14px 16px;
   border-radius: var(--radius);
