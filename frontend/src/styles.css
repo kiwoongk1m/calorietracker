@@ -369,6 +369,33 @@ body {
   flex-wrap: wrap;
   gap: 8px;
 }
+.correct {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.correct input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--card);
+  transition:
+    border-color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+.correct input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.correct .btn {
+  flex: none;
+}
+
 .chip {
   padding: 7px 13px;
   border: 1px solid var(--line-strong);

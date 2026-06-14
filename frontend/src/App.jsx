@@ -54,6 +54,7 @@ export default function App() {
   const [grams, setGrams] = useState('');
   const [cameraOpen, setCameraOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState(''); // text food search
+  const [correctionDraft, setCorrectionDraft] = useState(''); // fix a misrecognized dish by name
 
   // Meal log + daily tracking (persisted in localStorage via lib/log.js).
   const [entries, setEntries] = useState(() => getEntries());
@@ -88,6 +89,7 @@ export default function App() {
     setGrams('');
     setError(null);
     setJustLogged(false);
+    setCorrectionDraft('');
   }
 
   function startOver() {
@@ -173,6 +175,17 @@ export default function App() {
     if (candidate === label) return;
     setLabel(candidate);
     lookUp(candidate);
+  }
+
+  // Correct a misrecognized dish by typing the right name; keeps the photo
+  // context and just re-runs the nutrition lookup.
+  function submitCorrection(e) {
+    e.preventDefault();
+    const q = correctionDraft.trim();
+    if (!q) return;
+    setLabel(q);
+    lookUp(q);
+    setCorrectionDraft('');
   }
 
   function logCurrentMeal() {
@@ -358,18 +371,21 @@ export default function App() {
                 <span className="detected-label">Detected</span>
                 <strong className="detected-value">{label}</strong>
                 {typeof recognition.confidence === 'number' &&
-                  recognition.confidence > 0 && (
+                  recognition.confidence > 0 &&
+                  label === recognition.label && (
                     <span className="confidence">
                       {Math.round(recognition.confidence * 100)}% sure
                     </span>
                   )}
               </div>
 
-              {allCandidates.length > 1 && (
-                <div className="candidates">
-                  <span className="candidates-label">
-                    Not right? Pick another:
-                  </span>
+              <div className="candidates">
+                <span className="candidates-label">
+                  {allCandidates.length > 1
+                    ? 'Not right? Pick another or type it:'
+                    : 'Not right? Type the correct food:'}
+                </span>
+                {allCandidates.length > 1 && (
                   <div className="chips">
                     {allCandidates.map((c) => (
                       <button
@@ -383,8 +399,25 @@ export default function App() {
                       </button>
                     ))}
                   </div>
-                </div>
-              )}
+                )}
+                <form className="correct" onSubmit={submitCorrection}>
+                  <input
+                    type="text"
+                    placeholder="type the correct food"
+                    value={correctionDraft}
+                    onChange={(e) => setCorrectionDraft(e.target.value)}
+                    disabled={busy}
+                    aria-label="Correct the food by name"
+                  />
+                  <button
+                    type="submit"
+                    className="btn btn-sm"
+                    disabled={busy || !correctionDraft.trim()}
+                  >
+                    Use
+                  </button>
+                </form>
+              </div>
             </>
           ) : (
             <div className="detected">
