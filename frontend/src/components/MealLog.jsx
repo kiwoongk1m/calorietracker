@@ -3,7 +3,7 @@
 // back up via callbacks.
 
 import { useEffect, useState } from 'react';
-import { groupByDay, dayKey } from '../lib/log.js';
+import { groupByDay, groupIntoMeals, dayKey } from '../lib/log.js';
 import { useCountUp, prefersReducedMotion } from '../hooks/useCountUp.js';
 
 function formatDay(key) {
@@ -20,7 +20,14 @@ function formatDay(key) {
   });
 }
 
-export default function MealLog({ entries, goal, onDelete, onSetGoal }) {
+function formatTime(ts) {
+  return new Date(ts).toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+export default function MealLog({ entries, goal, onDelete, onDeleteMeal, onSetGoal }) {
   const [editingGoal, setEditingGoal] = useState(false);
   const [goalDraft, setGoalDraft] = useState(String(goal));
 
@@ -108,7 +115,7 @@ export default function MealLog({ entries, goal, onDelete, onSetGoal }) {
       </div>
 
       {groups.length === 0 ? (
-        <p className="log-empty">No meals logged yet. Estimate a meal and tap “Log this meal”.</p>
+        <p className="log-empty">No meals logged yet. Estimate a meal and tap “Log meal”.</p>
       ) : (
         <div className="log-history">
           {groups.map((g) => (
@@ -117,26 +124,52 @@ export default function MealLog({ entries, goal, onDelete, onSetGoal }) {
                 <span className="log-day-name">{formatDay(g.day)}</span>
                 <span className="log-day-total">{g.totals.kcal.toLocaleString()} kcal</span>
               </div>
-              <ul className="log-entries">
-                {g.entries.map((e, i) => (
-                  <li key={e.id} className="log-entry" style={{ '--i': i }}>
-                    <div className="log-entry-main">
-                      <span className="log-entry-name">{e.name}</span>
-                      <span className="log-entry-meta">
-                        {e.grams} g · {e.basis} · {e.kcal} kcal
-                      </span>
-                    </div>
-                    <button
-                      className="log-entry-del"
-                      onClick={() => onDelete(e.id)}
-                      aria-label={`Delete ${e.name}`}
-                      title="Delete"
-                    >
-                      ×
-                    </button>
-                  </li>
-                ))}
-              </ul>
+
+              {groupIntoMeals(g.entries).map((m, mi) => (
+                <div
+                  key={m.mealId || m.entries[0].id}
+                  className="log-meal"
+                  style={{ '--i': mi }}
+                >
+                  <div className="log-meal-head">
+                    <span className="log-meal-type">{m.meal || 'meal'}</span>
+                    <span className="log-meal-time">{formatTime(m.timestamp)}</span>
+                    <span className="log-meal-total">
+                      {m.totals.kcal.toLocaleString()} kcal
+                    </span>
+                    {m.mealId && (
+                      <button
+                        className="log-meal-del"
+                        onClick={() => onDeleteMeal(m.mealId)}
+                        aria-label={`Delete ${m.meal || 'meal'}`}
+                        title="Delete whole meal"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                  <ul className="log-entries">
+                    {m.entries.map((e) => (
+                      <li key={e.id} className="log-entry">
+                        <div className="log-entry-main">
+                          <span className="log-entry-name">{e.name}</span>
+                          <span className="log-entry-meta">
+                            {e.grams} g · {e.basis} · {e.kcal} kcal
+                          </span>
+                        </div>
+                        <button
+                          className="log-entry-del"
+                          onClick={() => onDelete(e.id)}
+                          aria-label={`Delete ${e.name}`}
+                          title="Delete food"
+                        >
+                          ×
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
             </div>
           ))}
         </div>

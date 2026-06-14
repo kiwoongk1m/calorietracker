@@ -132,6 +132,9 @@ function MealItemRow({ item, index, result, onSetGrams, onRemove, onRename }) {
 
 export default function MealBuilder({
   items,
+  mealType,
+  mealTypes,
+  onSetMealType,
   onSetGrams,
   onRemove,
   onRename,
@@ -193,6 +196,21 @@ export default function MealBuilder({
       )}
 
       {readyCount > 0 && (
+        <div className="meal-type" role="group" aria-label="Meal type">
+          {mealTypes.map((t) => (
+            <button
+              key={t}
+              className={`meal-type-btn ${t === mealType ? 'meal-type-active' : ''}`}
+              onClick={() => onSetMealType(t)}
+              aria-pressed={t === mealType}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {readyCount > 0 && (
         <button
           className={`btn btn-block ${justLogged ? 'btn-ghost' : ''}`}
           onClick={justLogged ? onViewLog : onLogMeal}
@@ -200,7 +218,7 @@ export default function MealBuilder({
         >
           {justLogged
             ? 'Logged ✓ — View log'
-            : `Log meal (${readyCount} item${readyCount > 1 ? 's' : ''})`}
+            : `Log ${mealType} (${readyCount} item${readyCount > 1 ? 's' : ''})`}
         </button>
       )}
     </section>

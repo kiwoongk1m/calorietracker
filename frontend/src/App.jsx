@@ -19,11 +19,14 @@ import { newId } from './lib/storage.js';
 import {
   addEntry,
   deleteEntry,
+  deleteMeal,
   getEntries,
   getGoal,
   setGoal as persistGoal,
   sumNutrition,
   dayKey,
+  defaultMealType,
+  MEAL_TYPES,
 } from './lib/log.js';
 import {
   getWeights,
@@ -55,6 +58,7 @@ export default function App() {
   // The meal under construction: a list of { id, query, nutrition, grams, state }
   // where state is 'loading' | 'ready' | 'error'.
   const [mealItems, setMealItems] = useState([]);
+  const [mealType, setMealType] = useState(() => defaultMealType());
   const [justLogged, setJustLogged] = useState(false);
 
   // Meal log + daily tracking (persisted in localStorage via lib/log.js).
@@ -138,6 +142,7 @@ export default function App() {
     setAddQuery('');
     setError(null);
     setJustLogged(false);
+    setMealType(defaultMealType());
     setStatus('idle');
   }
 
@@ -198,6 +203,8 @@ export default function App() {
   function logMeal() {
     const ready = mealItems.filter((it) => it.state === 'ready' && it.nutrition);
     if (ready.length === 0) return;
+    // One mealId ties the foods together as a single meal in the log.
+    const mealId = newId();
     for (const it of ready) {
       const g = parseFloat(it.grams);
       const r = calculateNutrition({
@@ -206,6 +213,8 @@ export default function App() {
         defaultServingGrams: it.nutrition.defaultServingGrams,
       });
       addEntry({
+        mealId,
+        meal: mealType,
         name: it.nutrition.name,
         fdcId: it.nutrition.fdcId,
         grams: r.grams,
@@ -223,6 +232,9 @@ export default function App() {
   // --- log + weight handlers ------------------------------------------------
   function handleDeleteEntry(id) {
     setEntries(deleteEntry(id));
+  }
+  function handleDeleteMeal(mealId) {
+    setEntries(deleteMeal(mealId));
   }
   function handleSetGoal(value) {
     setGoalState(persistGoal(value));
@@ -368,6 +380,9 @@ export default function App() {
             <>
               <MealBuilder
                 items={mealItems}
+                mealType={mealType}
+                mealTypes={MEAL_TYPES}
+                onSetMealType={setMealType}
                 onSetGrams={setItemGrams}
                 onRemove={removeMealItem}
                 onRename={renameMealItem}
@@ -388,6 +403,7 @@ export default function App() {
           entries={entries}
           goal={goal}
           onDelete={handleDeleteEntry}
+          onDeleteMeal={handleDeleteMeal}
           onSetGoal={handleSetGoal}
         />
       )}

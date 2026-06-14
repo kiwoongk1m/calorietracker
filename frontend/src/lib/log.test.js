@@ -3,9 +3,12 @@ import {
   dayKey,
   sumNutrition,
   groupByDay,
+  groupIntoMeals,
+  defaultMealType,
   addEntry,
   getEntries,
   deleteEntry,
+  deleteMeal,
   clearAll,
   getTodayTotals,
   getGoal,
@@ -36,6 +39,46 @@ describe('dayKey', () => {
   });
   it('returns "unknown" for an invalid timestamp', () => {
     expect(dayKey('not-a-date')).toBe('unknown');
+  });
+});
+
+describe('defaultMealType', () => {
+  it('maps hour of day to a meal type', () => {
+    expect(defaultMealType(new Date('2026-06-14T08:00:00'))).toBe('breakfast');
+    expect(defaultMealType(new Date('2026-06-14T13:00:00'))).toBe('lunch');
+    expect(defaultMealType(new Date('2026-06-14T19:00:00'))).toBe('dinner');
+    expect(defaultMealType(new Date('2026-06-14T23:30:00'))).toBe('snack');
+  });
+});
+
+describe('groupIntoMeals', () => {
+  it('groups entries that share a mealId into one meal with totals', () => {
+    const meals = groupIntoMeals([
+      { id: 'a', timestamp: '2026-06-14T12:00:00', mealId: 'm1', meal: 'lunch', kcal: 200, protein: 10, carbs: 20, fat: 5 },
+      { id: 'b', timestamp: '2026-06-14T12:01:00', mealId: 'm1', meal: 'lunch', kcal: 300, protein: 5, carbs: 40, fat: 8 },
+    ]);
+    expect(meals).toHaveLength(1);
+    expect(meals[0].mealId).toBe('m1');
+    expect(meals[0].meal).toBe('lunch');
+    expect(meals[0].entries).toHaveLength(2);
+    expect(meals[0].totals.kcal).toBe(500);
+  });
+
+  it('treats entries without a mealId as their own single-item meals', () => {
+    const meals = groupIntoMeals([
+      { id: 'a', timestamp: '2026-06-14T09:00:00', kcal: 100 },
+      { id: 'b', timestamp: '2026-06-14T10:00:00', kcal: 150 },
+    ]);
+    expect(meals).toHaveLength(2);
+    expect(meals.every((m) => m.entries.length === 1)).toBe(true);
+  });
+
+  it('orders meals newest first', () => {
+    const meals = groupIntoMeals([
+      { id: 'a', timestamp: '2026-06-14T08:00:00', mealId: 'm1', kcal: 100 },
+      { id: 'b', timestamp: '2026-06-14T19:00:00', mealId: 'm2', kcal: 200 },
+    ]);
+    expect(meals.map((m) => m.mealId)).toEqual(['m2', 'm1']);
   });
 });
 
@@ -80,6 +123,21 @@ describe('add / get / delete', () => {
     const remaining = deleteEntry(a.id);
     expect(remaining).toHaveLength(1);
     expect(remaining[0].name).toBe('Grilled chicken');
+  });
+
+  it('persists mealId + meal type on an entry', () => {
+    const stored = addEntry(meal({ mealId: 'm1', meal: 'dinner' }));
+    expect(stored.mealId).toBe('m1');
+    expect(stored.meal).toBe('dinner');
+  });
+
+  it('deleteMeal removes every entry in the meal, leaving others', () => {
+    addEntry(meal({ name: 'Chicken', mealId: 'm1', meal: 'dinner' }));
+    addEntry(meal({ name: 'Rice', mealId: 'm1', meal: 'dinner' }));
+    addEntry(meal({ name: 'Apple', mealId: 'm2', meal: 'snack' }));
+    const remaining = deleteMeal('m1');
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].name).toBe('Apple');
   });
 });
 

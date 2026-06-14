@@ -7,7 +7,10 @@
 // A future cloud-sync backend can replace that module without touching callers.
 //
 // Entry shape:
-//   { id, timestamp, name, fdcId?, grams, basis, kcal, protein, carbs, fat }
+//   { id, timestamp, mealId?, meal?, name, fdcId?, grams, basis,
+//     kcal, protein, carbs, fat }
+// Foods logged together share a `mealId` and a `meal` type, so the log can show
+// whole meals (breakfast/lunch/dinner/snack) rather than a flat list of foods.
 // ---------------------------------------------------------------------------
 
 import { storage, newId } from './storage.js';
@@ -15,6 +18,17 @@ import { storage, newId } from './storage.js';
 const ENTRIES_KEY = 'calorie-snap.log.v1';
 const GOAL_KEY = 'calorie-snap.goal.v1';
 const DEFAULT_GOAL = 2000;
+
+export const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'];
+
+/** Suggest a meal type from the time of day. Pure. */
+export function defaultMealType(now = new Date()) {
+  const h = new Date(now).getHours();
+  if (h >= 5 && h < 11) return 'breakfast';
+  if (h >= 11 && h < 16) return 'lunch';
+  if (h >= 16 && h < 22) return 'dinner';
+  return 'snack';
+}
 
 // --- pure helpers (unit-tested) ---------------------------------------------
 
@@ -71,6 +85,43 @@ export function groupByDay(entries = []) {
     });
 }
 
+/**
+ * Group a day's entries into meals: entries sharing a mealId form one meal;
+ * entries without one are their own single-item meal. Newest meal first; oldest
+ * food first within a meal. Pure.
+ * @returns {Array<{mealId:string|null, meal:string|null, timestamp:string, entries:object[], totals:object}>}
+ */
+export function groupIntoMeals(entries = []) {
+  const byMeal = new Map();
+  const groups = [];
+  for (const e of entries) {
+    if (e.mealId) {
+      if (!byMeal.has(e.mealId)) {
+        const group = { mealId: e.mealId, meal: e.meal || null, entries: [] };
+        byMeal.set(e.mealId, group);
+        groups.push(group);
+      }
+      byMeal.get(e.mealId).entries.push(e);
+    } else {
+      groups.push({ mealId: null, meal: e.meal || null, entries: [e] });
+    }
+  }
+  return groups
+    .map((g) => {
+      const sorted = [...g.entries].sort((a, b) =>
+        a.timestamp < b.timestamp ? -1 : 1
+      );
+      return {
+        mealId: g.mealId,
+        meal: g.meal,
+        timestamp: sorted[sorted.length - 1].timestamp,
+        entries: sorted,
+        totals: sumNutrition(sorted),
+      };
+    })
+    .sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1)); // newest meal first
+}
+
 // --- persisted operations ---------------------------------------------------
 
 export function getEntries() {
@@ -95,6 +146,8 @@ export function addEntry(entry) {
   const stored = {
     id: entry.id || newId(),
     timestamp: entry.timestamp || new Date().toISOString(),
+    mealId: entry.mealId || null,
+    meal: entry.meal || null,
     name: entry.name || 'Unknown dish',
     fdcId: entry.fdcId,
     grams: entry.grams,
@@ -113,6 +166,14 @@ export function addEntry(entry) {
 /** Remove an entry by id. Returns the remaining entries. */
 export function deleteEntry(id) {
   const remaining = getEntries().filter((e) => e.id !== id);
+  writeEntries(remaining);
+  return remaining;
+}
+
+/** Remove every entry belonging to a meal. Returns the remaining entries. */
+export function deleteMeal(mealId) {
+  if (!mealId) return getEntries();
+  const remaining = getEntries().filter((e) => e.mealId !== mealId);
   writeEntries(remaining);
   return remaining;
 }

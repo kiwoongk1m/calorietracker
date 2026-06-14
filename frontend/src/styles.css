@@ -1101,8 +1101,94 @@ body {
   margin-bottom: 16px;
 }
 
+/* Meal-type picker (segmented control). */
+.meal-type {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 12px;
+  background: var(--bg-sunken);
+  border-radius: var(--radius);
+}
+.meal-type-btn {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--body);
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: capitalize;
+  padding: 8px 6px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+.meal-type-active {
+  background: var(--card);
+  color: var(--accent-deep);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Logged meals (a day groups into meals; each meal lists its foods). */
+.log-meal {
+  margin-bottom: 16px;
+  animation: fadeUp 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+.log-meal:last-child {
+  margin-bottom: 0;
+}
+.log-meal-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.log-meal-type {
+  font-weight: 700;
+  font-size: 13px;
+  text-transform: capitalize;
+  color: var(--accent-deep);
+}
+.log-meal-time {
+  font-size: 12px;
+  color: var(--muted);
+}
+.log-meal-total {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.log-meal-del {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--card);
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    color 0.12s ease,
+    border-color 0.12s ease,
+    background 0.12s ease;
+}
+.log-meal-del:hover {
+  color: var(--error);
+  border-color: var(--error);
+  background: var(--error-bg);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .meal-item {
+  .meal-item,
+  .log-meal {
     animation: none;
   }
 }
