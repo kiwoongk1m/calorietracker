@@ -14,8 +14,15 @@
 import { useMemo, useState } from 'react';
 import { recognizeDish, fetchNutrition } from './services/api.js';
 import { calculateNutrition } from './lib/calc.js';
+import { mealItemResult } from './lib/meal.js';
 import { downscaleDataUrl } from './lib/image.js';
 import { newId } from './lib/storage.js';
+import {
+  getCustomFoods,
+  addCustomFood,
+  removeCustomFood,
+  customToNutrition,
+} from './lib/customFoods.js';
 import {
   addEntry,
   deleteEntry,
@@ -46,6 +53,7 @@ import {
 } from './lib/profile.js';
 import CameraCapture from './components/CameraCapture.jsx';
 import QuickAdd from './components/QuickAdd.jsx';
+import CustomFoodForm from './components/CustomFoodForm.jsx';
 import MealBuilder from './components/MealBuilder.jsx';
 import MealLog from './components/MealLog.jsx';
 import WeightTracker from './components/WeightTracker.jsx';
@@ -82,8 +90,9 @@ export default function App() {
   // Profile + calorie target (persisted in localStorage via lib/profile.js).
   const [profile, setProfileState] = useState(() => getProfile());
 
-  // Favorite foods for quick re-add (persisted via lib/favorites.js).
+  // Favorite + custom foods for quick re-add.
   const [favorites, setFavorites] = useState(() => getFavorites());
+  const [customFoods, setCustomFoods] = useState(() => getCustomFoods());
 
   const todayKcal = useMemo(() => {
     const today = dayKey(new Date());
@@ -100,7 +109,7 @@ export default function App() {
     const id = newId();
     setMealItems((prev) => [
       ...prev,
-      { id, query: q, nutrition: null, grams: '', state: 'loading' },
+      { id, query: q, nutrition: null, grams: '', portion: 1, state: 'loading' },
     ]);
     fetchNutrition(q)
       .then((data) =>
@@ -146,6 +155,43 @@ export default function App() {
     setMealItems((prev) =>
       prev.map((it) => (it.id === id ? { ...it, grams } : it))
     );
+  }
+
+  function setItemPortion(id, portion) {
+    setJustLogged(false);
+    setMealItems((prev) =>
+      prev.map((it) => (it.id === id ? { ...it, portion } : it))
+    );
+  }
+
+  // Add a custom (user-estimated) food to the current meal — ready immediately.
+  function addCustomFoodToMeal(food) {
+    setJustLogged(false);
+    setMealItems((prev) => [
+      ...prev,
+      {
+        id: newId(),
+        query: food.name,
+        nutrition: customToNutrition(food),
+        grams: '',
+        portion: 1,
+        state: 'ready',
+      },
+    ]);
+  }
+
+  // Save a new custom food (persist) AND add it to the meal.
+  function handleSaveCustomFood(food) {
+    const list = addCustomFood(food);
+    setCustomFoods(list);
+    const saved =
+      list.find((f) => f.name.toLowerCase() === food.name.toLowerCase()) ||
+      list[0];
+    if (saved) addCustomFoodToMeal(saved);
+  }
+
+  function handleRemoveCustomFood(id) {
+    setCustomFoods(removeCustomFood(id));
   }
 
   function removeMealItem(id) {
@@ -223,12 +269,7 @@ export default function App() {
     // One mealId ties the foods together as a single meal in the log.
     const mealId = newId();
     for (const it of ready) {
-      const g = parseFloat(it.grams);
-      const r = calculateNutrition({
-        per100g: it.nutrition.per100g,
-        grams: Number.isFinite(g) ? g : undefined,
-        defaultServingGrams: it.nutrition.defaultServingGrams,
-      });
+      const r = mealItemResult(it); // applies grams/serving, portion, custom
       addEntry({
         mealId,
         meal: mealType,
@@ -406,11 +447,16 @@ export default function App() {
                 </button>
               </form>
 
+              <CustomFoodForm onSave={handleSaveCustomFood} />
+
               <QuickAdd
                 favorites={favorites}
                 recents={recents}
+                customFoods={customFoods}
                 onAdd={addFoodToMeal}
+                onAddCustom={addCustomFoodToMeal}
                 onToggleFavorite={handleToggleFavorite}
+                onRemoveCustom={handleRemoveCustomFood}
               />
             </>
           )}
@@ -455,6 +501,7 @@ export default function App() {
                 mealTypes={MEAL_TYPES}
                 onSetMealType={setMealType}
                 onSetGrams={setItemGrams}
+                onSetPortion={setItemPortion}
                 onRemove={removeMealItem}
                 onRename={renameMealItem}
                 onLogMeal={logMeal}

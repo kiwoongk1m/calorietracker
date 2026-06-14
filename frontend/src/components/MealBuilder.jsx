@@ -1,22 +1,10 @@
-// Editable meal: a list of foods (from photo detection and/or name search),
-// each with its own grams and per-item calories, plus a running meal total and
-// a single "log meal" action. Presentational — items + mutations come from App.
+// Editable meal: a list of foods (photo / search / custom), each with grams, a
+// portion multiplier, and per-item calories, plus a running meal total and a
+// single "log meal" action. Presentational — items + mutations come from App.
 
 import { useState } from 'react';
-import { calculateNutrition } from '../lib/calc.js';
+import { mealItemResult, sumMeal, PORTIONS } from '../lib/meal.js';
 import { useCountUp } from '../hooks/useCountUp.js';
-
-const round1 = (n) => Math.round(n * 10) / 10;
-
-function itemResult(item) {
-  if (item.state !== 'ready' || !item.nutrition) return null;
-  const g = parseFloat(item.grams);
-  return calculateNutrition({
-    per100g: item.nutrition.per100g,
-    grams: Number.isFinite(g) ? g : undefined,
-    defaultServingGrams: item.nutrition.defaultServingGrams,
-  });
-}
 
 function TotalMacro({ label, value }) {
   const v = useCountUp(value, { decimals: 1 });
@@ -31,14 +19,10 @@ function TotalMacro({ label, value }) {
   );
 }
 
-function MealItemRow({ item, index, result, onSetGrams, onRemove, onRename }) {
+function MealItemRow({ item, index, result, onSetGrams, onSetPortion, onRemove, onRename }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
 
-  function startEdit() {
-    setDraft(item.nutrition ? item.nutrition.name : item.query);
-    setEditing(true);
-  }
   function saveEdit(e) {
     e.preventDefault();
     const q = draft.trim();
@@ -74,58 +58,86 @@ function MealItemRow({ item, index, result, onSetGrams, onRemove, onRename }) {
 
   const name =
     item.state === 'ready' && item.nutrition ? item.nutrition.name : item.query;
+  const custom = item.nutrition?.custom;
+  const portion = Number(item.portion) > 0 ? Number(item.portion) : 1;
 
   return (
     <li className="meal-item" style={{ '--i': index }}>
-      <div className="meal-item-main">
-        <span className="meal-item-name">{name}</span>
-        {item.state === 'loading' && (
-          <span className="meal-item-meta">looking up…</span>
-        )}
-        {item.state === 'error' && (
-          <span className="meal-item-meta meal-item-err">
-            couldn&rsquo;t find — rename or remove
+      <div className="meal-item-top">
+        <div className="meal-item-main">
+          <span className="meal-item-name">
+            <span className="meal-item-name-text">{name}</span>
+            {custom && <span className="meal-item-tag">custom</span>}
           </span>
-        )}
-        {item.state === 'ready' && result && (
-          <span className="meal-item-meta">
-            {result.kcal} kcal ·{' '}
-            {result.basis === 'weighed'
-              ? `${result.grams} g`
-              : `serving · ${result.grams} g`}
-          </span>
-        )}
+          {item.state === 'loading' && (
+            <span className="meal-item-meta">looking up…</span>
+          )}
+          {item.state === 'error' && (
+            <span className="meal-item-meta meal-item-err">
+              couldn&rsquo;t find — rename or remove
+            </span>
+          )}
+          {item.state === 'ready' && result && (
+            <span className="meal-item-meta">
+              {custom
+                ? `≈ ${result.kcal} kcal`
+                : `${result.kcal} kcal · ${
+                    result.basis === 'weighed'
+                      ? `${result.grams} g`
+                      : `serving · ${result.grams} g`
+                  }`}
+            </span>
+          )}
+        </div>
+        <button
+          className="meal-item-btn"
+          onClick={() => {
+            setDraft(name);
+            setEditing(true);
+          }}
+          title="Rename"
+          aria-label={`Rename ${name}`}
+        >
+          ✎
+        </button>
+        <button
+          className="meal-item-btn"
+          onClick={() => onRemove(item.id)}
+          title="Remove"
+          aria-label={`Remove ${name}`}
+        >
+          ×
+        </button>
       </div>
 
       {item.state === 'ready' && (
-        <input
-          className="meal-item-grams"
-          type="number"
-          min="0"
-          inputMode="decimal"
-          placeholder="g"
-          value={item.grams}
-          onChange={(e) => onSetGrams(item.id, e.target.value)}
-          aria-label={`Grams of ${name}`}
-        />
+        <div className="meal-item-controls">
+          {!custom && (
+            <input
+              className="meal-item-grams"
+              type="number"
+              min="0"
+              inputMode="decimal"
+              placeholder="g"
+              value={item.grams}
+              onChange={(e) => onSetGrams(item.id, e.target.value)}
+              aria-label={`Grams of ${name}`}
+            />
+          )}
+          <div className="portion" role="group" aria-label="Portion">
+            {PORTIONS.map((p) => (
+              <button
+                key={p.label}
+                className={`portion-btn ${portion === p.value ? 'portion-active' : ''}`}
+                onClick={() => onSetPortion(item.id, p.value)}
+                aria-pressed={portion === p.value}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
-
-      <button
-        className="meal-item-btn"
-        onClick={startEdit}
-        title="Rename"
-        aria-label={`Rename ${name}`}
-      >
-        ✎
-      </button>
-      <button
-        className="meal-item-btn"
-        onClick={() => onRemove(item.id)}
-        title="Remove"
-        aria-label={`Remove ${name}`}
-      >
-        ×
-      </button>
     </li>
   );
 }
@@ -136,28 +148,18 @@ export default function MealBuilder({
   mealTypes,
   onSetMealType,
   onSetGrams,
+  onSetPortion,
   onRemove,
   onRename,
   onLogMeal,
   justLogged,
   onViewLog,
 }) {
-  const results = items.map(itemResult);
-  const total = results.reduce(
-    (acc, r) =>
-      r
-        ? {
-            kcal: acc.kcal + r.kcal,
-            protein: acc.protein + r.protein,
-            carbs: acc.carbs + r.carbs,
-            fat: acc.fat + r.fat,
-          }
-        : acc,
-    { kcal: 0, protein: 0, carbs: 0, fat: 0 }
-  );
+  const results = items.map(mealItemResult);
+  const total = sumMeal(results);
   const readyCount = results.filter(Boolean).length;
   const anyLoading = items.some((it) => it.state === 'loading');
-  const totalKcal = useCountUp(Math.round(total.kcal), { decimals: 0 });
+  const totalKcal = useCountUp(total.kcal, { decimals: 0 });
 
   return (
     <section className="meal" aria-label="Your meal">
@@ -169,6 +171,7 @@ export default function MealBuilder({
             index={i}
             result={results[i]}
             onSetGrams={onSetGrams}
+            onSetPortion={onSetPortion}
             onRemove={onRemove}
             onRename={onRename}
           />
@@ -188,9 +191,9 @@ export default function MealBuilder({
             <span className="kcal-label">kcal</span>
           </div>
           <div className="macros">
-            <TotalMacro label="Protein" value={round1(total.protein)} />
-            <TotalMacro label="Carbs" value={round1(total.carbs)} />
-            <TotalMacro label="Fat" value={round1(total.fat)} />
+            <TotalMacro label="Protein" value={total.protein} />
+            <TotalMacro label="Carbs" value={total.carbs} />
+            <TotalMacro label="Fat" value={total.fat} />
           </div>
         </div>
       )}

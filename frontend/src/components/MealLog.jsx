@@ -64,7 +64,9 @@ function LoggedMeal({ meal, index, onDelete, onDeleteMeal, onAddToMeal }) {
             <div className="log-entry-main">
               <span className="log-entry-name">{e.name}</span>
               <span className="log-entry-meta">
-                {e.grams} g · {e.basis} · {e.kcal} kcal
+                {e.grams != null
+                  ? `${e.grams} g · ${e.basis} · ${e.kcal} kcal`
+                  : `${e.kcal} kcal · ${e.basis || 'estimate'}`}
               </span>
             </div>
             <button
