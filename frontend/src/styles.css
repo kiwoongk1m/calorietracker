@@ -696,3 +696,86 @@ body {
   border-color: var(--error);
   background: var(--error-bg);
 }
+
+/* ---- Motion & entrance animations ----------------------------------------*/
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Result + log sections rise into place as they appear. */
+.preview,
+.result-controls,
+.state,
+.log-today,
+.log-day {
+  animation: fadeUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* The nutrition card gets a slightly springier entrance and a hover lift. */
+.card {
+  animation: cardIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    var(--shadow-lg),
+    0 24px 48px -24px rgba(34, 31, 26, 0.25);
+}
+
+/* "Log this meal" button follows the card in. */
+.card + .btn-block {
+  animation: fadeUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: 0.08s;
+}
+
+/* Log entries cascade in. */
+.log-entry {
+  animation: fadeUp 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+
+/* Keep counting numbers from reflowing as digits change. */
+.kcal-value,
+.macro-value,
+.log-today-kcal {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preview,
+  .result-controls,
+  .state,
+  .log-today,
+  .log-day,
+  .card,
+  .card + .btn-block,
+  .log-entry {
+    animation: none;
+  }
+  .card {
+    transition: none;
+  }
+  .card:hover {
+    transform: none;
+  }
+}

@@ -2,8 +2,9 @@
 // grouped by day. Presentational — entries/goal come from App, mutations go
 // back up via callbacks.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { groupByDay, dayKey } from '../lib/log.js';
+import { useCountUp, prefersReducedMotion } from '../hooks/useCountUp.js';
 
 function formatDay(key) {
   const today = dayKey(new Date());
@@ -29,6 +30,20 @@ export default function MealLog({ entries, goal, onDelete, onSetGoal }) {
   const todayKcal = todayGroup ? todayGroup.totals.kcal : 0;
   const pct = goal > 0 ? Math.min(100, Math.round((todayKcal / goal) * 100)) : 0;
   const over = todayKcal > goal;
+
+  const todayDisplay = useCountUp(todayKcal, { decimals: 0 });
+
+  // Fill the progress bar from 0 on mount (and animate on change) via the
+  // existing CSS width transition.
+  const [barPct, setBarPct] = useState(prefersReducedMotion() ? pct : 0);
+  useEffect(() => {
+    if (prefersReducedMotion()) {
+      setBarPct(pct);
+      return;
+    }
+    const id = requestAnimationFrame(() => setBarPct(pct));
+    return () => cancelAnimationFrame(id);
+  }, [pct]);
 
   function saveGoal() {
     onSetGoal(goalDraft);
@@ -69,7 +84,7 @@ export default function MealLog({ entries, goal, onDelete, onSetGoal }) {
 
         <div className="log-today-total">
           <span className={`log-today-kcal ${over ? 'is-over' : ''}`}>
-            {todayKcal.toLocaleString()}
+            {todayDisplay.toLocaleString()}
           </span>
           <span className="log-today-unit">
             / {goal.toLocaleString()} kcal
@@ -79,7 +94,7 @@ export default function MealLog({ entries, goal, onDelete, onSetGoal }) {
         <div className="progress" role="progressbar" aria-valuenow={todayKcal} aria-valuemax={goal}>
           <div
             className={`progress-bar ${over ? 'is-over' : ''}`}
-            style={{ width: `${pct}%` }}
+            style={{ width: `${barPct}%` }}
           />
         </div>
 
@@ -103,8 +118,8 @@ export default function MealLog({ entries, goal, onDelete, onSetGoal }) {
                 <span className="log-day-total">{g.totals.kcal.toLocaleString()} kcal</span>
               </div>
               <ul className="log-entries">
-                {g.entries.map((e) => (
-                  <li key={e.id} className="log-entry">
+                {g.entries.map((e, i) => (
+                  <li key={e.id} className="log-entry" style={{ '--i': i }}>
                     <div className="log-entry-main">
                       <span className="log-entry-name">{e.name}</span>
                       <span className="log-entry-meta">

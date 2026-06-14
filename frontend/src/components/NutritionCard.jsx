@@ -1,12 +1,16 @@
 // Pure presentational nutrition card. Receives the output of calculateNutrition
 // plus the matched entry name, and renders calories + macros with the basis
-// (weighed vs typical serving) always visible.
+// (weighed vs typical serving) always visible. Calorie and macro figures
+// count up when they appear or change (see hooks/useCountUp).
+
+import { useCountUp } from '../hooks/useCountUp.js';
 
 function Macro({ label, value, unit }) {
+  const display = useCountUp(value, { decimals: 1 });
   return (
     <div className="macro">
       <span className="macro-value">
-        {value}
+        {display}
         <span className="macro-unit">{unit}</span>
       </span>
       <span className="macro-label">{label}</span>
@@ -15,6 +19,7 @@ function Macro({ label, value, unit }) {
 }
 
 export default function NutritionCard({ name, result }) {
+  const kcal = useCountUp(result ? result.kcal : 0, { decimals: 0 });
   if (!result) return null;
 
   const isWeighed = result.basis === 'weighed';
@@ -31,7 +36,7 @@ export default function NutritionCard({ name, result }) {
       </header>
 
       <div className="kcal">
-        <span className="kcal-value">{result.kcal}</span>
+        <span className="kcal-value">{kcal}</span>
         <span className="kcal-label">kcal</span>
       </div>
 
