@@ -37,10 +37,16 @@ import {
   weightStats,
   kgToUnit,
 } from './lib/weight.js';
+import {
+  getProfile,
+  setProfile as persistProfile,
+  recommendedCalories,
+} from './lib/profile.js';
 import CameraCapture from './components/CameraCapture.jsx';
 import MealBuilder from './components/MealBuilder.jsx';
 import MealLog from './components/MealLog.jsx';
 import WeightTracker from './components/WeightTracker.jsx';
+import Profile from './components/Profile.jsx';
 
 // A hard-coded stand-in "photo" for the sample button. The mock recognizer
 // ignores the bytes; a real image flows through unchanged with real providers.
@@ -69,6 +75,9 @@ export default function App() {
   // Body-weight tracking (persisted in localStorage via lib/weight.js).
   const [weights, setWeights] = useState(() => getWeights());
   const [weightUnit, setWeightUnit] = useState(() => getUnit());
+
+  // Profile + calorie target (persisted in localStorage via lib/profile.js).
+  const [profile, setProfileState] = useState(() => getProfile());
 
   const todayKcal = useMemo(() => {
     const today = dayKey(new Date());
@@ -236,6 +245,34 @@ export default function App() {
   function handleDeleteMeal(mealId) {
     setEntries(deleteMeal(mealId));
   }
+  // Add a food (by name) to an already-logged meal — uses a typical serving.
+  function handleAddToMeal(mealId, meal, query) {
+    const q = String(query || '').trim();
+    if (!mealId || !q) return;
+    fetchNutrition(q)
+      .then((data) => {
+        const r = calculateNutrition({
+          per100g: data.per100g,
+          defaultServingGrams: data.defaultServingGrams,
+        });
+        addEntry({
+          mealId,
+          meal,
+          name: data.name,
+          fdcId: data.fdcId,
+          grams: r.grams,
+          basis: r.basis,
+          kcal: r.kcal,
+          protein: r.protein,
+          carbs: r.carbs,
+          fat: r.fat,
+        });
+        setEntries(getEntries());
+      })
+      .catch(() => {
+        /* no match — leave the meal unchanged */
+      });
+  }
   function handleSetGoal(value) {
     setGoalState(persistGoal(value));
   }
@@ -249,10 +286,19 @@ export default function App() {
     setWeightUnit(persistUnit(unit));
   }
 
+  function handleProfileChange(p) {
+    setProfileState(persistProfile(p));
+  }
+  function handleApplyGoal(kcal) {
+    if (kcal) setGoalState(persistGoal(kcal));
+  }
+
   const wStats = weightStats(weights);
   const weightBadge = wStats
     ? `${kgToUnit(wStats.latest, weightUnit).toFixed(1)} ${weightUnit}`
     : 'no data';
+  const recommended = recommendedCalories(profile);
+  const profileBadge = recommended ? `${recommended.toLocaleString()} kcal` : 'set up';
 
   const busy = status === 'recognizing';
 
@@ -277,7 +323,7 @@ export default function App() {
           onClick={() => setView('log')}
         >
           Log
-          <span className="tab-badge">{todayKcal.toLocaleString()} kcal today</span>
+          <span className="tab-badge">{todayKcal.toLocaleString()} kcal</span>
         </button>
         <button
           className={`tab ${view === 'weight' ? 'tab-active' : ''}`}
@@ -285,6 +331,13 @@ export default function App() {
         >
           Weight
           <span className="tab-badge">{weightBadge}</span>
+        </button>
+        <button
+          className={`tab ${view === 'profile' ? 'tab-active' : ''}`}
+          onClick={() => setView('profile')}
+        >
+          Profile
+          <span className="tab-badge">{profileBadge}</span>
         </button>
       </nav>
 
@@ -404,6 +457,7 @@ export default function App() {
           goal={goal}
           onDelete={handleDeleteEntry}
           onDeleteMeal={handleDeleteMeal}
+          onAddToMeal={handleAddToMeal}
           onSetGoal={handleSetGoal}
         />
       )}
@@ -415,6 +469,18 @@ export default function App() {
           onAdd={handleAddWeight}
           onDelete={handleDeleteWeight}
           onSetUnit={handleSetUnit}
+        />
+      )}
+
+      {view === 'profile' && (
+        <Profile
+          profile={profile}
+          unit={weightUnit}
+          latestWeightKg={wStats ? wStats.latest : null}
+          goal={goal}
+          onChange={handleProfileChange}
+          onSetUnit={handleSetUnit}
+          onApplyGoal={handleApplyGoal}
         />
       )}
     </main>

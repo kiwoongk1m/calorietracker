@@ -27,7 +27,96 @@ function formatTime(ts) {
   });
 }
 
-export default function MealLog({ entries, goal, onDelete, onDeleteMeal, onSetGoal }) {
+function LoggedMeal({ meal, index, onDelete, onDeleteMeal, onAddToMeal }) {
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  function submitAdd(e) {
+    e.preventDefault();
+    const q = draft.trim();
+    if (q) onAddToMeal(meal.mealId, meal.meal, q);
+    setDraft('');
+    setAdding(false);
+  }
+
+  return (
+    <div className="log-meal" style={{ '--i': index }}>
+      <div className="log-meal-head">
+        <span className="log-meal-type">{meal.meal || 'meal'}</span>
+        <span className="log-meal-time">{formatTime(meal.timestamp)}</span>
+        <span className="log-meal-total">
+          {meal.totals.kcal.toLocaleString()} kcal
+        </span>
+        {meal.mealId && (
+          <button
+            className="log-meal-del"
+            onClick={() => onDeleteMeal(meal.mealId)}
+            aria-label={`Delete ${meal.meal || 'meal'}`}
+            title="Delete whole meal"
+          >
+            ×
+          </button>
+        )}
+      </div>
+      <ul className="log-entries">
+        {meal.entries.map((e) => (
+          <li key={e.id} className="log-entry">
+            <div className="log-entry-main">
+              <span className="log-entry-name">{e.name}</span>
+              <span className="log-entry-meta">
+                {e.grams} g · {e.basis} · {e.kcal} kcal
+              </span>
+            </div>
+            <button
+              className="log-entry-del"
+              onClick={() => onDelete(e.id)}
+              aria-label={`Delete ${e.name}`}
+              title="Delete food"
+            >
+              ×
+            </button>
+          </li>
+        ))}
+      </ul>
+      {meal.mealId &&
+        (adding ? (
+          <form className="log-meal-add" onSubmit={submitAdd}>
+            <input
+              type="text"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="add a food by name…"
+              aria-label="Add a food to this meal"
+              autoFocus
+            />
+            <button type="submit" className="btn btn-sm" disabled={!draft.trim()}>
+              Add
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => setAdding(false)}
+            >
+              Cancel
+            </button>
+          </form>
+        ) : (
+          <button className="log-meal-add-btn" onClick={() => setAdding(true)}>
+            + Add food
+          </button>
+        ))}
+    </div>
+  );
+}
+
+export default function MealLog({
+  entries,
+  goal,
+  onDelete,
+  onDeleteMeal,
+  onAddToMeal,
+  onSetGoal,
+}) {
   const [editingGoal, setEditingGoal] = useState(false);
   const [goalDraft, setGoalDraft] = useState(String(goal));
 
@@ -126,49 +215,14 @@ export default function MealLog({ entries, goal, onDelete, onDeleteMeal, onSetGo
               </div>
 
               {groupIntoMeals(g.entries).map((m, mi) => (
-                <div
+                <LoggedMeal
                   key={m.mealId || m.entries[0].id}
-                  className="log-meal"
-                  style={{ '--i': mi }}
-                >
-                  <div className="log-meal-head">
-                    <span className="log-meal-type">{m.meal || 'meal'}</span>
-                    <span className="log-meal-time">{formatTime(m.timestamp)}</span>
-                    <span className="log-meal-total">
-                      {m.totals.kcal.toLocaleString()} kcal
-                    </span>
-                    {m.mealId && (
-                      <button
-                        className="log-meal-del"
-                        onClick={() => onDeleteMeal(m.mealId)}
-                        aria-label={`Delete ${m.meal || 'meal'}`}
-                        title="Delete whole meal"
-                      >
-                        ×
-                      </button>
-                    )}
-                  </div>
-                  <ul className="log-entries">
-                    {m.entries.map((e) => (
-                      <li key={e.id} className="log-entry">
-                        <div className="log-entry-main">
-                          <span className="log-entry-name">{e.name}</span>
-                          <span className="log-entry-meta">
-                            {e.grams} g · {e.basis} · {e.kcal} kcal
-                          </span>
-                        </div>
-                        <button
-                          className="log-entry-del"
-                          onClick={() => onDelete(e.id)}
-                          aria-label={`Delete ${e.name}`}
-                          title="Delete food"
-                        >
-                          ×
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                  meal={m}
+                  index={mi}
+                  onDelete={onDelete}
+                  onDeleteMeal={onDeleteMeal}
+                  onAddToMeal={onAddToMeal}
+                />
               ))}
             </div>
           ))}
