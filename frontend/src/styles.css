@@ -1039,6 +1039,48 @@ body {
   font-size: 11px;
   font-weight: 700;
 }
+
+/* Chart transition when switching ranges (the <svg> is keyed by range, so these
+   replay on every switch): the line draws left-to-right, the rest fades in. */
+@keyframes drawLine {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes chartFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.weight-line {
+  stroke-dasharray: 1;
+  animation: drawLine 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.weight-area {
+  transform-origin: bottom;
+  animation: chartFade 0.5s ease 0.15s both;
+}
+.weight-dot {
+  animation: chartFade 0.3s ease 0.45s both;
+}
+.weight-chart .chart-value {
+  animation: chartFade 0.3s ease 0.55s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .weight-line,
+  .weight-area,
+  .weight-dot,
+  .weight-chart .chart-value {
+    animation: none;
+  }
+}
 .weight-chart-empty {
   margin-top: 14px;
   padding: 24px 12px;

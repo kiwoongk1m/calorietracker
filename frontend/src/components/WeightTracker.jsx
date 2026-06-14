@@ -15,9 +15,11 @@ import {
 } from '../lib/weight.js';
 import { useCountUp } from '../hooks/useCountUp.js';
 
-const CW = 340;
-const CH = 120;
+const CW = 340; // full SVG width
+const CH = 120; // plot height
 const PAD = 14;
+const GUTTER = 34; // left column reserved for y-axis labels
+const PLOT_W = CW - GUTTER; // width the data is plotted across
 
 function fmtDate(ts) {
   return new Date(ts).toLocaleDateString(undefined, {
@@ -54,8 +56,6 @@ function WeightChart({ series, unit }) {
     points.map((p) => `L ${p.x},${p.y}`).join(' ') +
     ` L ${points[points.length - 1].x},${baseline} Z`;
   const last = points[points.length - 1];
-  const maxLabel = kgToUnit(max, unit).toFixed(1);
-  const minLabel = kgToUnit(min, unit).toFixed(1);
 
   return (
     <svg
@@ -71,62 +71,67 @@ function WeightChart({ series, unit }) {
         </linearGradient>
       </defs>
 
-      {/* faint gridlines */}
-      {[PAD, (PAD + baseline) / 2, baseline].map((y, i) => (
-        <line
-          key={i}
-          x1="0"
-          y1={y}
-          x2={CW}
-          y2={y}
-          stroke="var(--line)"
-          strokeWidth="1"
-        />
-      ))}
+      {/* y-axis labels live in the left gutter, clear of the plot */}
+      <text className="chart-axis" x={GUTTER - 6} y={PAD + 4} textAnchor="end">
+        {kgToUnit(max, unit).toFixed(1)}
+      </text>
+      <text className="chart-axis" x={GUTTER - 6} y={baseline} textAnchor="end">
+        {kgToUnit(min, unit).toFixed(1)}
+      </text>
 
-      <path d={area} fill="url(#weight-fill)" />
-      <polyline
-        points={line}
-        fill="none"
-        stroke="var(--accent)"
-        strokeWidth="2.5"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
-      {points.map((p, i) => (
-        <circle
-          key={i}
-          cx={p.x}
-          cy={p.y}
-          r={i === points.length - 1 ? 4 : 2.5}
-          fill={i === points.length - 1 ? 'var(--accent-deep)' : 'var(--card)'}
+      {/* plot is shifted right by the gutter */}
+      <g transform={`translate(${GUTTER}, 0)`}>
+        {[PAD, (PAD + baseline) / 2, baseline].map((y, i) => (
+          <line
+            key={i}
+            x1="0"
+            y1={y}
+            x2={PLOT_W}
+            y2={y}
+            stroke="var(--line)"
+            strokeWidth="1"
+          />
+        ))}
+
+        <path className="weight-area" d={area} fill="url(#weight-fill)" />
+        <polyline
+          className="weight-line"
+          points={line}
+          pathLength="1"
+          fill="none"
           stroke="var(--accent)"
-          strokeWidth="2"
+          strokeWidth="2.5"
+          strokeLinejoin="round"
+          strokeLinecap="round"
         />
-      ))}
+        {points.map((p, i) => (
+          <circle
+            key={i}
+            className="weight-dot"
+            cx={p.x}
+            cy={p.y}
+            r={i === points.length - 1 ? 4 : 2.5}
+            fill={i === points.length - 1 ? 'var(--accent-deep)' : 'var(--card)'}
+            stroke="var(--accent)"
+            strokeWidth="2"
+          />
+        ))}
+        <text
+          className="chart-value"
+          x={Math.min(PLOT_W, last.x)}
+          y={Math.max(12, last.y - 8)}
+          textAnchor="end"
+        >
+          {kgToUnit(last.kg, unit).toFixed(1)}
+        </text>
+      </g>
 
-      {/* y-axis min/max labels */}
-      <text className="chart-axis" x="3" y={PAD + 4}>
-        {maxLabel}
-      </text>
-      <text className="chart-axis" x="3" y={baseline}>
-        {minLabel}
-      </text>
       {/* x-axis start/end dates */}
-      <text className="chart-axis" x="0" y={CH + 16} textAnchor="start">
+      <text className="chart-axis" x={GUTTER} y={CH + 16} textAnchor="start">
         {fmtDate(series.firstTs)}
       </text>
       <text className="chart-axis" x={CW} y={CH + 16} textAnchor="end">
         {fmtDate(series.lastTs)}
-      </text>
-      {/* latest value label */}
-      <text
-        className="chart-value"
-        x={Math.min(CW - 2, last.x)}
-        y={Math.max(12, last.y - 8)}
-        textAnchor="end"
-      >
-        {kgToUnit(last.kg, unit).toFixed(1)}
       </text>
     </svg>
   );
@@ -144,7 +149,7 @@ export default function WeightTracker({ weights, unit, onAdd, onDelete, onSetUni
   const rangeDef = WEIGHT_RANGES.find((r) => r.id === range) || WEIGHT_RANGES[1];
   const inRange = weightsInRange(weights, rangeDef.days);
   const stats = rangeStats(inRange);
-  const series = chartSeries(inRange, CW, CH, PAD);
+  const series = chartSeries(inRange, PLOT_W, CH, PAD);
 
   function submit(e) {
     e.preventDefault();
@@ -218,7 +223,7 @@ export default function WeightTracker({ weights, unit, onAdd, onDelete, onSetUni
               </p>
             )}
 
-            <WeightChart series={series} unit={unit} />
+            <WeightChart key={range} series={series} unit={unit} />
           </>
         )}
       </div>
